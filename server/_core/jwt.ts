@@ -1,4 +1,9 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import { webcrypto } from "node:crypto";
+
+if (!globalThis.crypto) {
+  Object.defineProperty(globalThis, "crypto", { value: webcrypto });
+}
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRY = "7d";

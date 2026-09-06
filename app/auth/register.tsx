@@ -106,7 +106,10 @@ export default function RegisterScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={s.keyboard}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.scrollContent}
+        >
           <View style={s.content}>
             <Text style={s.eyebrow}>GET STARTED</Text>
             <Text style={s.title}>Create account</Text>
@@ -279,6 +282,7 @@ export default function RegisterScreen() {
 
 const s = StyleSheet.create({
   keyboard: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
   content: { paddingTop: 60, paddingBottom: 30 },
   eyebrow: { color: C.muted, fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
   title: { color: C.ink, fontSize: 30, fontWeight: "800", marginTop: 5 },
