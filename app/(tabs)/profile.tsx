@@ -1,4 +1,4 @@
-import { Alert, Pressable, Text, View, StyleSheet } from "react-native";
+import { Alert, Platform, Pressable, Text, View, StyleSheet } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useAuthContext } from "@/context/AuthContext";
@@ -26,6 +26,13 @@ export default function ProfileScreen() {
   }
 
   function handleLogout() {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm("Are you sure you want to sign out?")) {
+        void logout();
+      }
+      return;
+    }
+
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {

@@ -40,6 +40,7 @@ export default function RegisterScreen() {
   const [wardName, setWardName] = useState("");
   const [wards, setWards] = useState<Ward[]>([]);
   const [wardsLoading, setWardsLoading] = useState(true);
+  const [wardsError, setWardsError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showWardPicker, setShowWardPicker] = useState(false);
@@ -52,6 +53,7 @@ export default function RegisterScreen() {
         const data = await res.json();
         setWards(data.wards || []);
       } catch {
+        setWardsError("Couldn’t load wards. Check that the local API is running, then refresh this page.");
         // Silently fail — wards list will be empty
       } finally {
         setWardsLoading(false);
@@ -245,7 +247,7 @@ export default function RegisterScreen() {
                 style={{ marginVertical: 30 }}
               />
             ) : wards.length === 0 ? (
-              <Text style={s.emptyText}>No wards available</Text>
+              <Text style={s.emptyText}>{wardsError || "No wards are available yet."}</Text>
             ) : (
               <FlatList
                 data={wards}
