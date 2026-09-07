@@ -1,10 +1,104 @@
-import { Alert, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { incidents } from "@/lib/ward-data";
+import { useIncident } from "@/hooks/useApi";
+import { useSubmitVolunteerInterest } from "@/hooks/useApi";
+
 const C = { ink: "#102A2A", teal: "#0F766E", bg: "#F4F8F7", surface: "#FFFFFF", muted: "#64748B", border: "#DCE9E6", coral: "#D9485F" };
-export default function IncidentDetail() { const { id } = useLocalSearchParams<{ id: string }>(); const item = incidents.find((x) => x.id === id) || incidents[0]; return <ScreenContainer containerClassName="bg-[#F4F8F7]" className="px-5"><ScrollView contentContainerStyle={s.content}><Pressable onPress={() => router.back()} style={s.back}><IconSymbol name="arrow.left" size={21} color={C.ink} /><Text style={s.backText}>Back to map</Text></Pressable><View style={s.badge}><Text style={s.badgeText}>VERIFIED PUBLIC INCIDENT</Text></View><Text style={s.title}>{item.title}</Text><Text style={s.location}><IconSymbol name="location.fill" size={15} color={C.teal} /> {item.location}</Text><View style={s.grid}><Stat label="Category" value={item.category} /><Stat label="Severity" value={item.severity} /><Stat label="Status" value={item.status} /></View><Text style={s.section}>What we know</Text><View style={s.card}><Text style={s.body}>{item.description}</Text></View><Text style={s.section}>Response timeline</Text><View style={s.card}><Timeline label="Reported" time="8:03 AM" /><Timeline label="Verified by Ward Admin" time="8:15 AM" /><Timeline label="Response started" time="8:30 AM" last /></View><Pressable onPress={() => Alert.alert("I can help", "Your volunteer offer has been recorded for manual coordination by the ward admin.")} style={s.help}><IconSymbol name="checkmark.circle.fill" size={20} color={C.surface} /><Text style={s.helpText}>I can help</Text></Pressable><Text style={s.helpNote}>Offer transport, shelter, supplies, or medical assistance.</Text></ScrollView></ScreenContainer> }
-function Stat({ label, value }: { label: string; value: string }) { return <View style={s.stat}><Text style={s.statLabel}>{label}</Text><Text style={s.statValue}>{value}</Text></View> }
-function Timeline({ label, time, last }: { label: string; time: string; last?: boolean }) { return <View style={s.timeline}><View style={s.timelineDot} /><View style={{ flex: 1 }}><Text style={s.timelineLabel}>{label}</Text><Text style={s.timelineTime}>{time}</Text></View>{!last && <View style={s.timelineLine} />}</View> }
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return <View style={s.stat}><Text style={s.statLabel}>{label}</Text><Text style={s.statValue}>{value}</Text></View>;
+}
+
+function Timeline({ label, time, last }: { label: string; time: string; last?: boolean }) {
+  return <View style={s.timeline}><View style={s.timelineDot} /><View style={{ flex: 1 }}><Text style={s.timelineLabel}>{label}</Text><Text style={s.timelineTime}>{time}</Text></View>{!last && <View style={s.timelineLine} />}</View>;
+}
+
+export default function IncidentDetail() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const incidentId = parseInt(id || "0", 10);
+  const { data, isLoading, error } = useIncident(incidentId);
+  const volunteerMutation = useSubmitVolunteerInterest();
+  const item = data?.incident;
+
+  const handleVolunteer = () => {
+    Alert.alert("I can help", "Your volunteer offer has been recorded for manual coordination by the ward admin.");
+  };
+
+  if (isLoading) {
+    return (
+      <ScreenContainer containerClassName="bg-[#F4F8F7]" className="px-5">
+        <ScrollView contentContainerStyle={s.content}>
+          <Pressable onPress={() => router.back()} style={s.back}>
+            <IconSymbol name="arrow.left" size={21} color={C.ink} />
+            <Text style={s.backText}>Back to map</Text>
+          </Pressable>
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <ActivityIndicator size="large" color={C.teal} />
+            <Text style={{ color: C.muted, marginTop: 12 }}>Loading incident...</Text>
+          </View>
+        </ScrollView>
+      </ScreenContainer>
+    );
+  }
+
+  if (error || !item) {
+    return (
+      <ScreenContainer containerClassName="bg-[#F4F8F7]" className="px-5">
+        <ScrollView contentContainerStyle={s.content}>
+          <Pressable onPress={() => router.back()} style={s.back}>
+            <IconSymbol name="arrow.left" size={21} color={C.ink} />
+            <Text style={s.backText}>Back to map</Text>
+          </Pressable>
+          <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 20 }}>
+            <Text style={{ color: C.coral, fontSize: 16, fontWeight: "800", marginBottom: 8 }}>Incident not found</Text>
+            <Text style={{ color: C.muted, fontSize: 13, textAlign: "center" }}>{error?.message || "This incident could not be loaded."}</Text>
+          </View>
+        </ScrollView>
+      </ScreenContainer>
+    );
+  }
+
+  const location = item.wardName || "Ward area";
+
+  return (
+    <ScreenContainer containerClassName="bg-[#F4F8F7]" className="px-5">
+      <ScrollView contentContainerStyle={s.content}>
+        <Pressable onPress={() => router.back()} style={s.back}>
+          <IconSymbol name="arrow.left" size={21} color={C.ink} />
+          <Text style={s.backText}>Back to map</Text>
+        </Pressable>
+        <View style={s.badge}>
+          <Text style={s.badgeText}>VERIFIED PUBLIC INCIDENT</Text>
+        </View>
+        <Text style={s.title}>{item.title}</Text>
+        <Text style={s.location}>
+          <IconSymbol name="location.fill" size={15} color={C.teal} /> {location}
+        </Text>
+        <View style={s.grid}>
+          <Stat label="Category" value={item.category} />
+          <Stat label="Severity" value={item.severity} />
+          <Stat label="Status" value={item.status} />
+        </View>
+        <Text style={s.section}>What we know</Text>
+        <View style={s.card}>
+          <Text style={s.body}>{item.description}</Text>
+        </View>
+        <Text style={s.section}>Response timeline</Text>
+        <View style={s.card}>
+          <Timeline label="Reported" time="Pending update" />
+          <Timeline label="Verified by Ward Admin" time="Pending update" />
+          <Timeline label="Response started" time="Pending update" last />
+        </View>
+        <Pressable onPress={handleVolunteer} style={s.help}>
+          <IconSymbol name="checkmark.circle.fill" size={20} color={C.surface} />
+          <Text style={s.helpText}>I can help</Text>
+        </Pressable>
+        <Text style={s.helpNote}>Offer transport, shelter, supplies, or medical assistance.</Text>
+      </ScrollView>
+    </ScreenContainer>
+  );
+}
+
 const s = StyleSheet.create({ content: { paddingTop: 17, paddingBottom: 32 }, back: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 25 }, backText: { color: C.ink, fontWeight: "700" }, badge: { alignSelf: "flex-start", backgroundColor: "#FCE8EC", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 }, badgeText: { color: C.coral, fontSize: 10, fontWeight: "900", letterSpacing: .6 }, title: { color: C.ink, fontSize: 28, fontWeight: "800", lineHeight: 34, marginTop: 13 }, location: { color: C.teal, fontSize: 13, fontWeight: "700", marginTop: 9, flexDirection: "row" }, grid: { flexDirection: "row", gap: 8, marginTop: 22 }, stat: { flex: 1, backgroundColor: C.surface, borderRadius: 13, padding: 11, borderWidth: 1, borderColor: C.border }, statLabel: { color: C.muted, fontSize: 10 }, statValue: { color: C.ink, fontSize: 12, fontWeight: "800", marginTop: 5 }, section: { color: C.ink, fontSize: 17, fontWeight: "800", marginTop: 25, marginBottom: 10 }, card: { backgroundColor: C.surface, borderRadius: 16, padding: 15, borderWidth: 1, borderColor: C.border }, body: { color: C.muted, fontSize: 14, lineHeight: 21 }, timeline: { flexDirection: "row", alignItems: "flex-start", gap: 11, minHeight: 55, position: "relative" }, timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: C.teal, marginTop: 3 }, timelineLine: { position: "absolute", left: 5, top: 16, height: 38, width: 2, backgroundColor: "#B9DED5" }, timelineLabel: { color: C.ink, fontSize: 13, fontWeight: "800" }, timelineTime: { color: C.muted, fontSize: 11, marginTop: 3 }, help: { height: 52, backgroundColor: C.teal, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 23 }, helpText: { color: C.surface, fontSize: 15, fontWeight: "800" }, helpNote: { color: C.muted, textAlign: "center", fontSize: 11, marginTop: 10 } });

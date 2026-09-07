@@ -2,8 +2,11 @@ import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Stack, router, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
+
+const queryClient = new QueryClient();
 
 function AuthGate() {
   const { user, isLoading } = useAuthContext();
@@ -45,11 +48,13 @@ function AuthGate() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <AuthGate />
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <AuthGate />
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

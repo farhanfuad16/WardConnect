@@ -13,6 +13,8 @@ import { registerResourceRoutes } from "../routes/resources";
 import { registerNoticeRoutes } from "../routes/notices";
 import { registerNotificationRoutes } from "../routes/notifications";
 import { registerVolunteerRoutes } from "../routes/volunteers";
+import { registerUploadRoutes } from "../routes/uploads";
+import { registerAnalyticsRoutes } from "../routes/analytics";
 import { notFound, errorHandler } from "../middleware/errorHandler";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -74,6 +76,8 @@ async function startServer() {
   registerNoticeRoutes(app);
   registerNotificationRoutes(app);
   registerVolunteerRoutes(app);
+  registerUploadRoutes(app);
+  registerAnalyticsRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
