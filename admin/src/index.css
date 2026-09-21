@@ -1,0 +1,88 @@
+/* Theme tokens. Light is the default; the dark set applies when the theme
+   toggle (src/lib/theme.ts) sets data-theme="dark" on <html>. Pages reference
+   these as var(--token) in their inline styles. */
+:root {
+  --page-bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --ink: #102A2A;
+  --text-2: #374151;
+  --text-3: #4B5563;
+  --muted: #64748B;
+  --border-strong: #D1D5DB;
+  --btn-bg: #F3F4F6;
+  --subtle-bg: #F1F5F9;
+  --danger-bg: #FEF2F2;
+  --danger-bg-2: #FEE2E2;
+  --danger-border: #FECACA;
+  --danger-text: #DC2626;
+  --success-bg: #F0FDF4;
+  --info-bg: #EFF6FF;
+  --link: #0F766E;
+  --sidebar-bg: #102A2A;
+  --sidebar-border: #1E3A3A;
+
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Makes native controls (selects, date pickers, scrollbars) follow the theme. */
+  color-scheme: light;
+  color: var(--ink);
+  background-color: var(--page-bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="dark"] {
+  --page-bg: #0F1115;
+  --surface: #1A1D23;
+  --ink: #ECEDEE;
+  --text-2: #D0D3D8;
+  --text-3: #B0B5BC;
+  --muted: #9BA1A6;
+  --border-strong: #3A3F47;
+  --btn-bg: #262A31;
+  --subtle-bg: #21252B;
+  --danger-bg: #3B1E26;
+  --danger-bg-2: #4A2530;
+  --danger-border: #6B3540;
+  --danger-text: #F27D8D;
+  --success-bg: #1F3D2E;
+  --info-bg: #1E3350;
+  --link: #2DD4BF;
+  --sidebar-bg: #0B0D10;
+  --sidebar-border: #23272E;
+
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Form controls without an inline background would otherwise use the browser's own gray in dark mode. */
+input,
+select,
+textarea {
+  background-color: var(--surface);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
