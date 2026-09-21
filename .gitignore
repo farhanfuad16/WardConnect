@@ -68,3 +68,6 @@ Thumbs.db
 
 # local test logins (plaintext passwords)
 TEST_ACCOUNTS.md
+
+# Expo Go QR code - contains this PC's LAN IP (regenerate with: node scripts/update-lan-ip.mjs)
+expo-qr-code.png
