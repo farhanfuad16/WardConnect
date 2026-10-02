@@ -45,6 +45,8 @@ export interface Issue {
   longitude?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Set when the reporter edited the report after submitting it */
+  editedAt?: string | null;
   userName?: string;
   wardName?: string;
 }
@@ -107,6 +109,7 @@ export interface SosAlert {
   type: string;
   status: "pending" | "dispatched" | "resolved" | "cancelled";
   note?: string;
+  photoUrl?: string | null;
   latitude?: string | null;
   longitude?: string | null;
   createdAt: string;
@@ -204,6 +207,17 @@ export async function getIssue(id: number): Promise<{ issue: Issue }> {
   return apiRequest<{ issue: Issue }>(`/api/issues/${id}`);
 }
 
+/** Residents can edit their own report only while it's still "submitted"; photoUrl null removes the photo. */
+export async function updateIssue(
+  id: number,
+  data: { category?: string; title?: string; description?: string; landmark?: string; photoUrl?: string | null },
+): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/api/issues/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 /** Residents can delete their own report only while it's still "submitted". */
 export async function deleteIssue(id: number): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>(`/api/issues/${id}`, { method: "DELETE" });
@@ -283,6 +297,7 @@ export async function markAllNotificationsRead(): Promise<{ success: boolean }> 
 export async function createSosAlert(data: {
   type: string;
   note?: string;
+  photoUrl?: string;
   latitude?: number;
   longitude?: number;
 }): Promise<{ alert: SosAlert }> {

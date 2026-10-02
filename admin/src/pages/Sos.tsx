@@ -10,6 +10,7 @@ interface SosAlert {
   type: string;
   status: string;
   note: string | null;
+  photoUrl: string | null;
   latitude: string | null;
   longitude: string | null;
   createdAt: string;
@@ -284,6 +285,14 @@ export default function Sos() {
                           {' • '}
                           <a href={osmLink(alert.latitude!, alert.longitude!)} target="_blank" rel="noreferrer" style={{ color: 'var(--link)', fontWeight: 600 }}>
                             View location
+                          </a>
+                        </>
+                      )}
+                      {alert.photoUrl && (
+                        <>
+                          {' • '}
+                          <a href={alert.photoUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--link)', fontWeight: 600 }}>
+                            View photo
                           </a>
                         </>
                       )}

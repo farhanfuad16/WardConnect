@@ -81,6 +81,8 @@ export const issues = mysqlTable(
     longitude: decimal("longitude", { precision: 10, scale: 7 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    // Set when the reporter edits the report (only allowed while it is "submitted")
+    editedAt: timestamp("editedAt"),
   },
   (table) => [
     index("issues_userId_idx").on(table.userId),
@@ -106,6 +108,7 @@ export const sosAlerts = mysqlTable(
       .default("pending")
       .notNull(),
     note: text("note"),
+    photoUrl: varchar("photoUrl", { length: 512 }),
     latitude: decimal("latitude", { precision: 10, scale: 7 }),
     longitude: decimal("longitude", { precision: 10, scale: 7 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

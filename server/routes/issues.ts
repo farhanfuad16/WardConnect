@@ -6,14 +6,9 @@ import { issues, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { notifyUser } from "../services/notify";
-import { UPLOAD_DIR } from "./uploads";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { photoUrlSchema, removeLocalPhoto } from "./uploads";
 
 // ── Validation ──────────────────────────────────────────────────────
-
-// A Cloudinary URL, or a path to an image stored by this server (see routes/uploads.ts)
-const photoUrlSchema = z.union([z.string().url().regex(/^https?:\/\//), z.string().regex(/^\/uploads\/[A-Za-z0-9_\-/]+\.[a-z]+$/)]);
 
 const createIssueSchema = z.object({
   category: z.string().min(1, "Category is required"),
@@ -33,7 +28,7 @@ const updateIssueSchema = z.object({
   description: z.string().min(10).optional(),
   severity: z.enum(["normal", "emergency"]).optional(),
   landmark: z.string().optional(),
-  photoUrl: photoUrlSchema.optional(),
+  photoUrl: photoUrlSchema.nullable().optional(), // null removes the photo
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
@@ -73,6 +68,7 @@ export function registerIssueRoutes(app: Express) {
           longitude: issues.longitude,
           createdAt: issues.createdAt,
           updatedAt: issues.updatedAt,
+          editedAt: issues.editedAt,
           userName: users.name,
           wardName: wards.name,
         })
@@ -122,6 +118,7 @@ export function registerIssueRoutes(app: Express) {
           longitude: issues.longitude,
           createdAt: issues.createdAt,
           updatedAt: issues.updatedAt,
+          editedAt: issues.editedAt,
           userName: users.name,
           wardName: wards.name,
         })
@@ -219,6 +216,12 @@ export function registerIssueRoutes(app: Express) {
         return;
       }
 
+      // The reporter can edit only until the ward office picks the report up
+      if (!user.isAdmin && existing[0].status !== "submitted") {
+        res.status(403).json({ error: "This report is already being handled by the ward office and can't be edited." });
+        return;
+      }
+
       // Only admin can change status
       const updateData: Record<string, unknown> = { ...parsed.data };
       if (updateData.status && !user.isAdmin) {
@@ -232,7 +235,14 @@ export function registerIssueRoutes(app: Express) {
         return;
       }
 
+      // Lets the admin see that the reporter changed the report after submitting it
+      if (!user.isAdmin) updateData.editedAt = new Date();
+
       await db.update(issues).set(updateData).where(eq(issues.id, issueId));
+
+      if (updateData.photoUrl !== undefined && updateData.photoUrl !== existing[0].photoUrl) {
+        removeLocalPhoto(existing[0].photoUrl);
+      }
 
       if (typeof updateData.status === "string" && updateData.status !== existing[0].status) {
         notifyUser(
@@ -282,13 +292,7 @@ export function registerIssueRoutes(app: Express) {
 
       await db.delete(issues).where(eq(issues.id, issueId));
 
-      // Remove a locally stored photo too (Cloudinary photos are left alone)
-      if (issue.photoUrl?.startsWith("/uploads/")) {
-        const file = path.join(UPLOAD_DIR, issue.photoUrl.slice("/uploads/".length));
-        if (file.startsWith(UPLOAD_DIR + path.sep)) {
-          fs.unlink(file).catch(() => {});
-        }
-      }
+      removeLocalPhoto(issue.photoUrl);
 
       res.json({ success: true });
     } catch (err) {

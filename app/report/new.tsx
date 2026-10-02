@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { BackButton } from "@/components/back-button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { PressableView } from "@/components/pressable-view";
 import { LocationField } from "@/components/location-field";
 import { useDeviceLocation } from "@/hooks/use-device-location";
-import { useCreateIssue } from "@/hooks/useApi";
-import { uploadImage } from "@/lib/api";
+import { useCreateIssue, useIssue, useUpdateIssue } from "@/hooks/useApi";
+import { resolveMediaUrl, uploadImage } from "@/lib/api";
 import { showAlert } from "@/lib/alert";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
@@ -26,6 +26,31 @@ export default function NewReport() {
   const [uploadProgress, setUploadProgress] = useState("");
   const createIssue = useCreateIssue();
   const device = useDeviceLocation();
+
+  // Edit mode: /report/new?edit=<id> (the reporter can edit while the report is still "submitted")
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const editId = Number(edit) || 0;
+  const isEdit = editId > 0;
+  const { data: editData } = useIssue(editId);
+  const updateIssue = useUpdateIssue();
+  // Photo already saved on the report being edited; imageUri holds a newly picked one
+  const [savedPhoto, setSavedPhoto] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  const saving = createIssue.isPending || updateIssue.isPending;
+
+  useEffect(() => {
+    const issue = editData?.issue;
+    // Fill the form once; the report query keeps polling and must not overwrite typing
+    if (!isEdit || prefilled || !issue) return;
+    setCategory(issue.category);
+    setTitle(issue.title);
+    setDescription(issue.description);
+    setLandmark(issue.landmark ?? "");
+    setSavedPhoto(issue.photoUrl ?? null);
+    setPrefilled(true);
+  }, [isEdit, prefilled, editData]);
+
+  const previewUri = imageUri ?? (savedPhoto ? resolveMediaUrl(savedPhoto) : null);
 
   const requestPermissions = async (type: "camera" | "library") => {
     if (type === "camera") {
@@ -97,7 +122,14 @@ export default function NewReport() {
       "Are you sure you want to remove this photo?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => setImageUri(null) },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            setImageUri(null);
+            setSavedPhoto(null);
+          },
+        },
       ],
     );
   };
@@ -121,6 +153,9 @@ export default function NewReport() {
         photoUrl = uploadResult.url;
       } catch (err: any) {
         setUploading(false);
+        if (isEdit) {
+          return showAlert("Photo Upload Failed", err?.message || "Failed to upload photo. Please try again.");
+        }
         showAlert(
           "Photo Upload Failed",
           err?.message || "Failed to upload photo. Would you like to submit without a photo?",
@@ -136,7 +171,33 @@ export default function NewReport() {
       }
     }
 
-    await submitIssue(photoUrl);
+    await (isEdit ? saveEdit(photoUrl) : submitIssue(photoUrl));
+  };
+
+  const saveEdit = async (newPhotoUrl: string | undefined) => {
+    const original = editData?.issue;
+    if (!original) return;
+    // A new upload wins; otherwise the saved photo, or null if it was removed
+    const photoUrl = newPhotoUrl ?? savedPhoto;
+    try {
+      setUploadProgress("Saving changes...");
+      await updateIssue.mutateAsync({
+        id: editId,
+        data: {
+          category,
+          title: title.trim(),
+          description: description.trim(),
+          landmark: landmark.trim(),
+          photoUrl: photoUrl !== (original.photoUrl ?? null) ? photoUrl : undefined,
+        },
+      });
+      showAlert("Report updated", "Your changes have been saved.", [{ text: "OK", onPress: () => router.back() }]);
+    } catch (err: any) {
+      showAlert("Couldn't save changes", err?.message || "Something went wrong. Please try again.");
+    } finally {
+      setUploading(false);
+      setUploadProgress("");
+    }
   };
 
   const submitIssue = async (photoUrl: string | undefined) => {
@@ -167,12 +228,27 @@ export default function NewReport() {
     }
   };
 
+  if (isEdit && !prefilled) {
+    return (
+      <ScreenContainer>
+        <ScrollView contentContainerStyle={s.content}>
+          <BackButton />
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <ActivityIndicator size="large" color={C.teal} />
+          </View>
+        </ScrollView>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={s.content}>
         <BackButton />
-        <Text style={s.title}>Submit a report</Text>
-        <Text style={s.subtitle}>Tell your ward team what needs attention.</Text>
+        <Text style={s.title}>{isEdit ? "Edit report" : "Submit a report"}</Text>
+        <Text style={s.subtitle}>
+          {isEdit ? "You can change this until the ward team picks it up." : "Tell your ward team what needs attention."}
+        </Text>
         <Text style={s.label}>Category</Text>
         <View style={s.chips}>
           {categories.map((x) => (
@@ -189,9 +265,9 @@ export default function NewReport() {
         <TextInput value={landmark} onChangeText={setLandmark} placeholder="e.g. Near Kafrul Market" placeholderTextColor={C.muted} style={s.input} />
         <Text style={s.label}>Photo <Text style={s.optional}>(optional)</Text></Text>
         
-        {imageUri ? (
+        {previewUri ? (
           <View style={s.imagePreviewContainer}>
-            <Image source={{ uri: imageUri }} style={s.imagePreview} />
+            <Image source={{ uri: previewUri }} style={s.imagePreview} />
             <View style={s.imageActions}>
               <Pressable onPress={removeImage} style={s.imageAction}>
                 <IconSymbol name="trash" size={16} color={C.coral} />
@@ -217,18 +293,22 @@ export default function NewReport() {
         )}
 
         <Text style={s.label}>Location</Text>
-        <LocationField device={device} adjustable attachedText="Attached when you submit." />
+        {isEdit ? (
+          <Text style={s.subtitle}>The location stays as it was when you reported it.</Text>
+        ) : (
+          <LocationField device={device} adjustable attachedText="Attached when you submit." />
+        )}
 
         <PressableView
           onPress={submit}
-          disabled={createIssue.isPending || uploading}
+          disabled={saving || uploading}
           style={[
             s.submit,
-            (createIssue.isPending || uploading) && { opacity: 0.6 },
+            (saving || uploading) && { opacity: 0.6 },
           ]}
           pressedStyle={{ opacity: 0.85 }}
         >
-          {createIssue.isPending || uploading ? (
+          {saving || uploading ? (
             <ActivityIndicator size="small" color={C.onFill} />
           ) : (
             <IconSymbol name="paperplane.fill" size={18} color={C.onFill} />
@@ -236,9 +316,9 @@ export default function NewReport() {
           <Text style={s.submitText}>
             {uploading
               ? uploadProgress
-              : createIssue.isPending
-                ? "Submitting..."
-                : "Submit report"}
+              : saving
+                ? isEdit ? "Saving..." : "Submitting..."
+                : isEdit ? "Save changes" : "Submit report"}
           </Text>
         </PressableView>
       </ScrollView>

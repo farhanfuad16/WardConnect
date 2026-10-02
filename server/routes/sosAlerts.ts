@@ -6,6 +6,7 @@ import { sosAlerts, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { notifyUser } from "../services/notify";
+import { photoUrlSchema } from "./uploads";
 
 const SOS_STATUS_MESSAGE: Record<"pending" | "dispatched" | "resolved" | "cancelled", string> = {
   pending: "Your SOS alert is waiting for a responder.",
@@ -19,6 +20,7 @@ const SOS_STATUS_MESSAGE: Record<"pending" | "dispatched" | "resolved" | "cancel
 const createSosSchema = z.object({
   type: z.string().min(1, "SOS type is required"),
   note: z.string().optional(),
+  photoUrl: photoUrlSchema.optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
@@ -54,6 +56,7 @@ export function registerSosAlertRoutes(app: Express) {
           type: sosAlerts.type,
           status: sosAlerts.status,
           note: sosAlerts.note,
+          photoUrl: sosAlerts.photoUrl,
           latitude: sosAlerts.latitude,
           longitude: sosAlerts.longitude,
           createdAt: sosAlerts.createdAt,
@@ -98,6 +101,7 @@ export function registerSosAlertRoutes(app: Express) {
           type: sosAlerts.type,
           status: sosAlerts.status,
           note: sosAlerts.note,
+          photoUrl: sosAlerts.photoUrl,
           latitude: sosAlerts.latitude,
           longitude: sosAlerts.longitude,
           createdAt: sosAlerts.createdAt,

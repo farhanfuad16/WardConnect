@@ -19,6 +19,7 @@ interface Issue {
   photoUrl: string | null;
   createdAt: string;
   updatedAt: string;
+  editedAt: string | null;
   userName: string | null;
   wardName: string | null;
 }
@@ -222,6 +223,9 @@ export default function Issues() {
                     <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '8px' }}>
                       {issue.category} • {issue.userName || 'Unknown reporter'} • {issue.wardName || 'No ward'} • Reported {timeAgoWithDate(issue.createdAt)}
                       {issue.status !== 'submitted' && <> • Updated {timeAgoWithDate(issue.updatedAt)}</>}
+                      {issue.editedAt && (
+                        <span style={{ color: '#F59E0B', fontWeight: 600 }}> • Edited by reporter {timeAgoWithDate(issue.editedAt)}</span>
+                      )}
                     </div>
                   </div>
                   <select

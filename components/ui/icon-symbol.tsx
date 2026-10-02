@@ -28,6 +28,7 @@ const MAPPING = {
   "moon.fill": "dark-mode",
   "camera.fill": "photo-camera",
   "trash": "delete",
+  "pencil": "edit",
   "paperplane.fill": "send",
   "arrow.triangle.turn.up.right.diamond.fill": "directions",
   "arrow.clockwise": "refresh",

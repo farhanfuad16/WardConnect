@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import multer from "multer";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { uploadImage, isCloudinaryConfigured } from "../services/cloudinary";
@@ -38,6 +39,24 @@ const EXT_BY_MIME: Record<string, string> = {
   "image/gif": "gif",
   "image/webp": "webp",
 };
+
+/**
+ * A photo reference a client may save on a record: an http(s) URL (Cloudinary)
+ * or a path to an image this server stored. Anything else (e.g. `javascript:`)
+ * is rejected, because the admin dashboard renders it as a link.
+ */
+export const photoUrlSchema = z.union([
+  z.string().url().regex(/^https?:\/\//),
+  z.string().regex(/^\/uploads\/[A-Za-z0-9_\-/]+\.[a-z]+$/),
+]);
+
+/** Delete a photo this server stored (Cloudinary URLs and missing files are ignored). */
+export async function removeLocalPhoto(photoUrl: string | null | undefined): Promise<void> {
+  if (!photoUrl?.startsWith("/uploads/")) return;
+  const file = path.join(UPLOAD_DIR, photoUrl.slice("/uploads/".length));
+  if (!file.startsWith(UPLOAD_DIR + path.sep)) return;
+  await fs.unlink(file).catch(() => {});
+}
 
 export function registerUploadRoutes(app: Express) {
   // Locally stored images. File names are generated server-side, never taken from the client.

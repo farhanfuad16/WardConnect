@@ -10,6 +10,7 @@ import { LocationField } from "@/components/location-field";
 import { useDeviceLocation } from "@/hooks/use-device-location";
 import { useCreateSosAlert } from "@/hooks/useApi";
 import { showAlert } from "@/lib/alert";
+import { uploadImage } from "@/lib/api";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
 const options = ["Fire", "Flood", "Medical", "Accident", "Security"];
@@ -20,6 +21,7 @@ export default function SOSScreen() {
   const [note, setNote] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const createSos = useCreateSosAlert();
+  const [uploading, setUploading] = useState(false);
   const device = useDeviceLocation();
 
   const requestPermissions = async (type: "camera" | "library") => {
@@ -95,20 +97,34 @@ export default function SOSScreen() {
       return showAlert("Choose an emergency type", "Select the closest category so the ward team knows how to respond.");
     }
 
+    // A photo helps responders, but must never stop the SOS: if the upload
+    // fails, send the alert without it.
+    let photoUrl: string | undefined;
+    let photoFailed = false;
+    if (imageUri) {
+      setUploading(true);
+      try {
+        photoUrl = (await uploadImage(imageUri)).url;
+      } catch {
+        photoFailed = true;
+      } finally {
+        setUploading(false);
+      }
+    }
+
     try {
-      // Note: Photo upload for SOS is not yet supported by the backend
-      // The image will be captured but not sent with the SOS alert
       await createSos.mutateAsync({
         type: selected,
         note: note.trim() || undefined,
+        photoUrl,
         latitude: device.coords?.latitude,
         longitude: device.coords?.longitude,
       });
-      
-      const message = imageUri
-        ? "Ward admin has been notified. Note: Photo capture is available but the backend doesn't support photo uploads for SOS alerts yet. For life-threatening emergencies, call 999."
+
+      const message = photoFailed
+        ? "Ward admin has been notified, but the photo couldn't be uploaded. For life-threatening emergencies, call 999."
         : "Ward admin has been notified. For life-threatening emergencies, call 999.";
-      
+
       showAlert("SOS sent", message, [{ text: "Done", onPress: () => router.back() }]);
     } catch (err: any) {
       showAlert("Failed to send SOS", err?.message || "Something went wrong. Please try again.");
@@ -169,8 +185,8 @@ export default function SOSScreen() {
         <View style={{ marginTop: 10 }}>
           <LocationField device={device} attachedText="Sent with your alert so responders can find you." />
         </View>
-        <PressableView onPress={send} disabled={createSos.isPending} style={[s.send, createSos.isPending && { opacity: 0.6 }]} pressedStyle={{ opacity: 0.85 }}>
-          {createSos.isPending ? (
+        <PressableView onPress={send} disabled={createSos.isPending || uploading} style={[s.send, (createSos.isPending || uploading) && { opacity: 0.6 }]} pressedStyle={{ opacity: 0.85 }}>
+          {createSos.isPending || uploading ? (
             <ActivityIndicator size="small" color={C.onFill} />
           ) : (
             <Text style={s.sendText}>SEND SOS</Text>

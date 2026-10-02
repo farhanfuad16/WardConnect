@@ -18,6 +18,17 @@ export function useIssue(id: number) {
   });
 }
 
+export function useUpdateIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof api.updateIssue>[1] }) => api.updateIssue(id, data),
+    onSuccess: (_res, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      queryClient.invalidateQueries({ queryKey: ["issue", id] });
+    },
+  });
+}
+
 export function useDeleteIssue() {
   const queryClient = useQueryClient();
   return useMutation({
