@@ -1,4 +1,5 @@
 import { DEFAULT_CENTER, type Coords } from "./geo"; // relative so plain-node tests can load this file
+import { LEAFLET_CSS, LEAFLET_JS } from "./vendor/leaflet-assets";
 
 /**
  * Shared bits of the Leaflet + OpenStreetMap map. The map itself is a small
@@ -117,15 +118,15 @@ const TILES = MAPTILER_KEY
       invertDark: true,
     };
 
-const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
-const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
 
 export const LEAFLET_HTML = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<link rel="stylesheet" href="${LEAFLET_CSS}" />
+<!-- Leaflet is embedded (lib/vendor/leaflet-assets.ts), not fetched from a CDN:
+     the download on every map open made maps slow or blank on weak connections. -->
+<style>${LEAFLET_CSS}</style>
 <style>
   html, body, #map { height: 100%; margin: 0; padding: 0; }
   body { background: #DDEAE4; font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; }
@@ -143,13 +144,16 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
   .wc-pop b { display: block; font-size: 14px; }
   .wc-pop span { color: #64748B; }
   .wc-link { display: inline-block; margin-top: 6px; color: #0F766E; font-weight: 700; cursor: pointer; }
+  .wc-banner { position: absolute; z-index: 1000; left: 8px; right: 8px; top: 8px; padding: 8px 10px; border-radius: 10px;
+    background: rgba(15,23,42,.82); color: #fff; font-size: 12px; text-align: center; display: none; }
   .wc-off { display: flex; height: 100%; align-items: center; justify-content: center; padding: 16px;
     text-align: center; color: #64748B; font-size: 13px; }
 </style>
 </head>
 <body>
 <div id="map"></div>
-<script src="${LEAFLET_JS}"></script>
+<div id="wc-banner" class="wc-banner">Map images aren't loading. Check the phone's internet connection.</div>
+<script>${LEAFLET_JS}</script>
 <script>
 (function () {
   function post(o) {
@@ -168,6 +172,12 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
   var TILE_OPTS = { maxZoom: 19, detectRetina: ${TILES.detectRetina}, attribution: '${TILES.attribution}' };
   var lightTiles = L.tileLayer('${TILES.light}', TILE_OPTS);
   var darkTiles = L.tileLayer('${TILES.dark}', TILE_OPTS);
+  // Say so when tiles fail (no internet, bad key) instead of leaving a blank box
+  var banner = document.getElementById('wc-banner'), tileOk = false, tileErrors = 0;
+  [lightTiles, darkTiles].forEach(function (layer) {
+    layer.on('tileload', function () { tileOk = true; banner.style.display = 'none'; });
+    layer.on('tileerror', function () { tileErrors++; if (!tileOk && tileErrors >= 4) banner.style.display = 'block'; });
+  });
   var tiles = null;
   function useTiles(dark) {
     var next = dark ? darkTiles : lightTiles;

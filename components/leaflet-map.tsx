@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useAppColors } from "@/hooks/use-app-colors";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -56,6 +56,11 @@ export function LeafletMap(props: LeafletMapProps) {
         setSupportMultipleWindows={false}
         style={styles.web}
       />
+      {!ready ? (
+        <View pointerEvents="none" style={styles.loading}>
+          <ActivityIndicator color={C.teal} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -63,4 +68,5 @@ export function LeafletMap(props: LeafletMapProps) {
 const styles = StyleSheet.create({
   box: { borderRadius: 19, overflow: "hidden", borderWidth: 1 },
   web: { flex: 1, backgroundColor: "transparent" },
+  loading: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
 });
