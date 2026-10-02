@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { incidents, users, wards } from "../../drizzle/schema";
+import { incidents, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { requireAdmin } from "../middleware/admin";
 import { AppError } from "../middleware/errorHandler";
@@ -67,13 +67,11 @@ export function registerIncidentRoutes(app: Express) {
           latitude: incidents.latitude,
           longitude: incidents.longitude,
           verifiedBy: incidents.verifiedBy,
-          verifiedByName: users.name,
           createdAt: incidents.createdAt,
           wardName: wards.name,
         })
         .from(incidents)
         .leftJoin(wards, eq(incidents.wardId, wards.id))
-        .leftJoin(users, eq(incidents.verifiedBy, users.id))
         .where(where)
         .orderBy(desc(incidents.createdAt))
         .limit(limit)
@@ -114,13 +112,11 @@ export function registerIncidentRoutes(app: Express) {
           latitude: incidents.latitude,
           longitude: incidents.longitude,
           verifiedBy: incidents.verifiedBy,
-          verifiedByName: users.name,
           createdAt: incidents.createdAt,
           wardName: wards.name,
         })
         .from(incidents)
         .leftJoin(wards, eq(incidents.wardId, wards.id))
-        .leftJoin(users, eq(incidents.verifiedBy, users.id))
         .where(eq(incidents.id, Number(req.params.id)))
         .limit(1);
 

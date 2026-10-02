@@ -105,6 +105,10 @@ export default function NewReport() {
   };
 
   const showImageOptions = () => {
+    // Web: showAlert can only offer two choices there (window.confirm), so
+    // "Choose from Gallery" was unreachable. The browser's own file picker
+    // already offers both camera and gallery on phones, so open it directly.
+    if (Platform.OS === "web") return pickImage(false);
     showAlert(
       "Add Photo",
       "Choose how you'd like to add a photo",

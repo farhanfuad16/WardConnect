@@ -32,6 +32,10 @@ export function showAlert(title: string, message?: string, buttons?: AlertButton
 
   const cancelButton = list.find((b) => b.style === "cancel");
   const confirmButton = list.find((b) => b.style !== "cancel") ?? list[0];
+  if (__DEV__ && list.filter((b) => b.style !== "cancel").length > 1) {
+    // confirm() has only OK/Cancel: every choice after the first is unreachable on web.
+    console.warn(`showAlert("${title}"): more than one non-cancel button; on web only "${confirmButton.text}" can be chosen.`);
+  }
 
   if (window.confirm(text)) {
     confirmButton.onPress?.();

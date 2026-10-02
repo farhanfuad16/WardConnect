@@ -14,7 +14,6 @@ interface Incident {
   latitude: string | null;
   longitude: string | null;
   verifiedBy: number | null;
-  verifiedByName: string | null;
   wardName: string | null;
   createdAt: string;
 }
@@ -470,9 +469,7 @@ export default function Incidents() {
                       </span>
                       <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-3)' }}>{incident.status}</span>
                       {incident.verifiedBy ? (
-                        <span style={{ color: '#10B981', fontWeight: '600', fontSize: '12px' }}>
-                          Verified{incident.verifiedByName ? ` by ${incident.verifiedByName}` : ''}
-                        </span>
+                        <span style={{ color: '#10B981', fontWeight: '600', fontSize: '12px' }}>Verified</span>
                       ) : (
                         <span style={{ color: '#F59E0B', fontWeight: '600', fontSize: '12px' }}>Pending verification</span>
                       )}

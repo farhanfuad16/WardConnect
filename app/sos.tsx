@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -77,6 +77,10 @@ export default function SOSScreen() {
   };
 
   const showImageOptions = () => {
+    // Web: showAlert can only offer two choices there (window.confirm), so
+    // "Choose from Gallery" was unreachable. The browser's own file picker
+    // already offers both camera and gallery on phones, so open it directly.
+    if (Platform.OS === "web") return pickImage(false);
     showAlert(
       "Add Photo",
       "Choose how you'd like to add a photo",
