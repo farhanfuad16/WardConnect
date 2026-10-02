@@ -5,6 +5,9 @@ import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { BackButton } from "@/components/back-button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PressableView } from "@/components/pressable-view";
+import { LocationField } from "@/components/location-field";
+import { useDeviceLocation } from "@/hooks/use-device-location";
 import { useCreateIssue } from "@/hooks/useApi";
 import { uploadImage } from "@/lib/api";
 import { showAlert } from "@/lib/alert";
@@ -22,6 +25,7 @@ export default function NewReport() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const createIssue = useCreateIssue();
+  const device = useDeviceLocation();
 
   const requestPermissions = async (type: "camera" | "library") => {
     if (type === "camera") {
@@ -144,6 +148,8 @@ export default function NewReport() {
         description: description.trim(),
         landmark: landmark.trim() || undefined,
         photoUrl,
+        latitude: device.coords?.latitude,
+        longitude: device.coords?.longitude,
       });
       showAlert(
         "Report submitted",
@@ -211,24 +217,16 @@ export default function NewReport() {
         )}
 
         <Text style={s.label}>Location</Text>
-        <View style={s.utility}>
-          <View style={s.utilityIcon}>
-            <IconSymbol name="location.fill" size={19} color={C.teal} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.utilityTitle}>Location ready to share</Text>
-            <Text style={s.utilityText}>Current location will be attached when you submit.</Text>
-          </View>
-        </View>
-        
-        <Pressable
+        <LocationField device={device} adjustable attachedText="Attached when you submit." />
+
+        <PressableView
           onPress={submit}
           disabled={createIssue.isPending || uploading}
-          style={({ pressed }) => [
+          style={[
             s.submit,
-            pressed && { opacity: 0.85 },
             (createIssue.isPending || uploading) && { opacity: 0.6 },
           ]}
+          pressedStyle={{ opacity: 0.85 }}
         >
           {createIssue.isPending || uploading ? (
             <ActivityIndicator size="small" color={C.onFill} />
@@ -242,7 +240,7 @@ export default function NewReport() {
                 ? "Submitting..."
                 : "Submit report"}
           </Text>
-        </Pressable>
+        </PressableView>
       </ScrollView>
     </ScreenContainer>
   );
@@ -308,10 +306,6 @@ const makeStyles = (C: AppColors) => StyleSheet.create({
     paddingVertical: 4,
   },
   imageActionText: { fontSize: 13, fontWeight: "600" },
-  utility: { backgroundColor: C.surface, borderRadius: 15, padding: 13, flexDirection: "row", alignItems: "center", gap: 10, ...C.card, marginBottom: 9 },
-  utilityIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" },
-  utilityTitle: { color: C.ink, fontSize: 13, fontWeight: "700" },
-  utilityText: { color: C.muted, fontSize: 11, marginTop: 3 },
   submit: { backgroundColor: C.tealFill, height: 46, borderRadius: 14, marginTop: 21, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, ...C.tealGlow },
   submitText: { color: C.onFill, fontSize: 15, fontWeight: "700" },
 });

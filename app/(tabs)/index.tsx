@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View, StyleSheet } from
 import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PressableView } from "@/components/pressable-view";
 import { useAuthContext } from "@/context/AuthContext";
 import { useNotices, useIncidents } from "@/hooks/useApi";
 import { NotificationBell } from "@/components/notification-bell";
@@ -20,7 +21,7 @@ function initials(name: string) {
 function ActionTile({ title, subtitle, icon, color, glow, onPress }: { title: string; subtitle: string; icon: "plus.circle.fill" | "exclamationmark.triangle.fill"; color: string; glow: object; onPress: () => void }) {
   const { C: colors, s: styles } = useAppStyles(makeStyles);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.tile, { backgroundColor: color }, glow, pressed && styles.pressed]}>
+    <PressableView onPress={onPress} style={[styles.tile, { backgroundColor: color }, glow]} pressedStyle={styles.pressed}>
       <View style={styles.tileIcon}>
         <IconSymbol name={icon} size={20} color={colors.onFill} />
       </View>
@@ -28,7 +29,7 @@ function ActionTile({ title, subtitle, icon, color, glow, onPress }: { title: st
         <Text style={styles.tileTitle}>{title}</Text>
         <Text style={styles.tileSub}>{subtitle}</Text>
       </View>
-    </Pressable>
+    </PressableView>
   );
 }
 

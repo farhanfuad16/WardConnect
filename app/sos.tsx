@@ -5,6 +5,9 @@ import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { BackButton } from "@/components/back-button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PressableView } from "@/components/pressable-view";
+import { LocationField } from "@/components/location-field";
+import { useDeviceLocation } from "@/hooks/use-device-location";
 import { useCreateSosAlert } from "@/hooks/useApi";
 import { showAlert } from "@/lib/alert";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
@@ -17,6 +20,7 @@ export default function SOSScreen() {
   const [note, setNote] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const createSos = useCreateSosAlert();
+  const device = useDeviceLocation();
 
   const requestPermissions = async (type: "camera" | "library") => {
     if (type === "camera") {
@@ -97,6 +101,8 @@ export default function SOSScreen() {
       await createSos.mutateAsync({
         type: selected,
         note: note.trim() || undefined,
+        latitude: device.coords?.latitude,
+        longitude: device.coords?.longitude,
       });
       
       const message = imageUri
@@ -160,21 +166,16 @@ export default function SOSScreen() {
           </Pressable>
         )}
 
-        <View style={s.location}>
-          <IconSymbol name="location.fill" size={20} color={C.teal} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.locationTitle}>Current location ready</Text>
-            <Text style={s.locationText}>Location will be attached automatically.</Text>
-          </View>
-          <IconSymbol name="checkmark.circle.fill" size={20} color={C.teal} />
+        <View style={{ marginTop: 10 }}>
+          <LocationField device={device} attachedText="Sent with your alert so responders can find you." />
         </View>
-        <Pressable onPress={send} disabled={createSos.isPending} style={({ pressed }) => [s.send, pressed && { opacity: 0.85 }, createSos.isPending && { opacity: 0.6 }]}>
+        <PressableView onPress={send} disabled={createSos.isPending} style={[s.send, createSos.isPending && { opacity: 0.6 }]} pressedStyle={{ opacity: 0.85 }}>
           {createSos.isPending ? (
             <ActivityIndicator size="small" color={C.onFill} />
           ) : (
             <Text style={s.sendText}>SEND SOS</Text>
           )}
-        </Pressable>
+        </PressableView>
         <Text style={s.disclaimer}>Only use for genuine emergencies. False alerts divert resources from real incidents.</Text>
       </ScrollView>
     </ScreenContainer>
@@ -242,9 +243,6 @@ const makeStyles = (C: AppColors) => StyleSheet.create({
     paddingVertical: 4,
   },
   imageActionText: { fontSize: 13, fontWeight: "600" },
-  location: { marginTop: 10, backgroundColor: C.surface, borderRadius: 15, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, ...C.card },
-  locationTitle: { color: C.ink, fontSize: 13, fontWeight: "700" },
-  locationText: { color: C.muted, fontSize: 11, marginTop: 3 },
   send: { height: 46, backgroundColor: C.coralFill, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 20, ...C.coralGlow },
   sendText: { color: C.onFill, fontSize: 15, fontWeight: "600", letterSpacing: .2 },
   disclaimer: { color: C.muted, fontSize: 11, textAlign: "center", lineHeight: 17, marginTop: 16 },

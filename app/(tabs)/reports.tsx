@@ -2,6 +2,7 @@ import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from "
 import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PressableView } from "@/components/pressable-view";
 import { useIssues } from "@/hooks/useApi";
 import { statusLabel, type Issue } from "@/lib/api";
 import { useAuthContext } from "@/context/AuthContext";
@@ -15,7 +16,7 @@ function IssueCard({ item }: { item: Issue }) {
   const statusColor = item.status === "in_progress" ? C.amber : C.green;
   const statusBg = item.status === "in_progress" ? C.amberTint : C.greenTint;
   return (
-    <Pressable onPress={() => router.push(`/report/${item.id}`)} style={({ pressed }) => [s.card, pressed && { opacity: 0.75 }]}>
+    <PressableView onPress={() => router.push(`/report/${item.id}`)} style={s.card} pressedStyle={{ opacity: 0.75 }}>
       <View style={s.cardTop}>
         <Text style={s.id}>#{item.id}</Text>
         <View style={[s.pill, { backgroundColor: statusBg }]}>
@@ -29,7 +30,7 @@ function IssueCard({ item }: { item: Issue }) {
         <Text style={s.date}>{dateStr}</Text>
         <IconSymbol name="chevron.right" size={18} color={C.muted} />
       </View>
-    </Pressable>
+    </PressableView>
   );
 }
 

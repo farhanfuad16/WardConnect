@@ -1,6 +1,7 @@
 import { Pressable, Text, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { router } from "expo-router";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PressableView } from "@/components/pressable-view";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
 /**
@@ -20,14 +21,15 @@ export function BackButton({
 }) {
   const { C, s } = useAppStyles(makeStyles);
   return (
-    <Pressable
+    <PressableView
       onPress={onPress ?? (() => router.back())}
-      style={({ pressed }) => [s.button, pressed && s.pressed, style]}
+      style={[s.button, style]}
+      pressedStyle={s.pressed}
       hitSlop={4}
     >
       <IconSymbol name="arrow.left" size={17} color={C.ink} />
       <Text style={s.label}>{label}</Text>
-    </Pressable>
+    </PressableView>
   );
 }
 

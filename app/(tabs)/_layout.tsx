@@ -9,8 +9,11 @@ type TabIconName = "house.fill" | "doc.text.fill" | "map.fill" | "bell.fill" | "
 
 function TabIcon({ name, color, focused }: { name: TabIconName; color: string; focused: boolean }) {
   const C = useAppColors();
+  // Fixed size, not padding: the tab bar gives this icon a ~31px-wide slot, and on
+  // native Android the 36px of horizontal padding used up the whole slot, squeezing
+  // the icon to zero width (empty pill in Expo Go). An explicit width may overflow the slot.
   return (
-    <View style={{ backgroundColor: focused ? C.tealTint : "transparent", borderRadius: 16, paddingHorizontal: 18, paddingVertical: 4 }}>
+    <View style={{ width: 58, height: 30, alignItems: "center", justifyContent: "center", backgroundColor: focused ? C.tealTint : "transparent", borderRadius: 16 }}>
       <IconSymbol name={name} size={22} color={color} />
     </View>
   );

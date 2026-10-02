@@ -1,6 +1,7 @@
 import { ActivityIndicator, FlatList, Pressable, Text, View, StyleSheet } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { PressableView } from "@/components/pressable-view";
 import { useNotices } from "@/hooks/useApi";
 import { NotificationBell } from "@/components/notification-bell";
 import { type Notice } from "@/lib/api";
@@ -12,7 +13,7 @@ function NoticeCard({ item }: { item: Notice }) {
   const color = item.category === "Emergency Alert" ? C.coral : item.category === "Utility Notice" ? C.amber : C.teal;
   const bgColor = item.category === "Emergency Alert" ? C.coralTint : item.category === "Utility Notice" ? C.amberTint : C.greenTint;
   return (
-    <Pressable style={({ pressed }) => [s.card, pressed && { opacity: .75 }]}>
+    <PressableView style={s.card} pressedStyle={{ opacity: .75 }}>
       <View style={[s.icon, { backgroundColor: bgColor }]}>
         <IconSymbol name={item.category === "Emergency Alert" ? "exclamationmark.triangle.fill" : "bell.fill"} size={19} color={color} />
       </View>
@@ -23,7 +24,7 @@ function NoticeCard({ item }: { item: Notice }) {
         <Text style={s.date}>{dateStr}</Text>
       </View>
       <IconSymbol name="chevron.right" size={18} color={C.muted} />
-    </Pressable>
+    </PressableView>
   );
 }
 
