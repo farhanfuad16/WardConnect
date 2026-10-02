@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { getIssues, updateIssueStatus } from '../lib/api';
+import { hasCoords, osmLink } from '../lib/map';
 import { timeAgoWithDate } from '../lib/time';
 
 interface Issue {
@@ -13,6 +14,8 @@ interface Issue {
   status: string;
   severity: string;
   landmark: string | null;
+  latitude: string | null;
+  longitude: string | null;
   photoUrl: string | null;
   createdAt: string;
   updatedAt: string;
@@ -180,9 +183,17 @@ export default function Issues() {
                     <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 10px', lineHeight: '1.5' }}>
                       {issue.description}
                     </p>
-                    {issue.landmark && (
+                    {(issue.landmark || hasCoords(issue.latitude, issue.longitude)) && (
                       <div style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '4px' }}>
                         📍 {issue.landmark}
+                        {hasCoords(issue.latitude, issue.longitude) && (
+                          <>
+                            {issue.landmark ? ' • ' : ''}
+                            <a href={osmLink(issue.latitude!, issue.longitude!)} target="_blank" rel="noreferrer" style={{ color: 'var(--link)', fontWeight: 600 }}>
+                              View on map
+                            </a>
+                          </>
+                        )}
                       </div>
                     )}
                     {issue.photoUrl && (

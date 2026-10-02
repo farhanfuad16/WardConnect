@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { getResources, createResource, updateResource, deleteResource } from '../lib/api';
+import { hasCoords, osmLink } from '../lib/map';
 
 interface Resource {
   id: number;
@@ -9,9 +10,13 @@ interface Resource {
   contactInfo: string;
   address: string | null;
   description: string | null;
+  latitude: string | null;
+  longitude: string | null;
   wardName: string;
   createdAt: string;
 }
+
+const EMPTY_FORM = { name: '', category: 'hospital', contactInfo: '', address: '', description: '', latitude: '', longitude: '' };
 
 const categoryIcons: Record<string, string> = {
   hospital: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
@@ -26,7 +31,7 @@ export default function Resources() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Resource | null>(null);
-  const [formData, setFormData] = useState({ name: '', category: 'hospital', contactInfo: '', address: '', description: '' });
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [filter, setFilter] = useState({ category: '' });
 
   useEffect(() => {
@@ -49,15 +54,27 @@ export default function Resources() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { latitude, longitude, ...rest } = formData;
+    const lat = latitude.trim();
+    const lng = longitude.trim();
+    if ((lat === '') !== (lng === '')) {
+      alert('Enter both latitude and longitude, or leave both empty.');
+      return;
+    }
+    if (lat !== '' && (!Number.isFinite(Number(lat)) || Math.abs(Number(lat)) > 90 || !Number.isFinite(Number(lng)) || Math.abs(Number(lng)) > 180)) {
+      alert('Latitude must be between -90 and 90, and longitude between -180 and 180.');
+      return;
+    }
     try {
       if (editing) {
-        await updateResource(editing.id, formData);
+        // null clears a previously saved location
+        await updateResource(editing.id, { ...rest, latitude: lat === '' ? null : Number(lat), longitude: lng === '' ? null : Number(lng) });
       } else {
-        await createResource(formData);
+        await createResource(lat === '' ? rest : { ...rest, latitude: Number(lat), longitude: Number(lng) });
       }
       setShowForm(false);
       setEditing(null);
-      setFormData({ name: '', category: 'hospital', contactInfo: '', address: '', description: '' });
+      setFormData(EMPTY_FORM);
       loadResources();
     } catch (err: any) {
       alert(`Failed to save: ${err.message}`);
@@ -71,7 +88,9 @@ export default function Resources() {
       category: resource.category,
       contactInfo: resource.contactInfo,
       address: resource.address || '',
-      description: resource.description || ''
+      description: resource.description || '',
+      latitude: resource.latitude ? String(Number(resource.latitude)) : '',
+      longitude: resource.longitude ? String(Number(resource.longitude)) : ''
     });
     setShowForm(true);
   };
@@ -89,7 +108,18 @@ export default function Resources() {
   const handleCancel = () => {
     setShowForm(false);
     setEditing(null);
-    setFormData({ name: '', category: 'hospital', contactInfo: '', address: '', description: '' });
+    setFormData(EMPTY_FORM);
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert('This browser cannot provide your location.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setFormData((f) => ({ ...f, latitude: pos.coords.latitude.toFixed(6), longitude: pos.coords.longitude.toFixed(6) })),
+      (err) => alert(`Couldn't get your location: ${err.message}`),
+    );
   };
 
   return (
@@ -227,6 +257,39 @@ export default function Resources() {
                     fontSize: '14px'
                   }}
                 />
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: 'var(--text-2)' }}>
+                  Map location (optional)
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Latitude, e.g. 23.8103"
+                    value={formData.latitude}
+                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                    style={{ flex: '1 1 160px', padding: '10px', border: '1px solid var(--border-strong)', borderRadius: '8px', fontSize: '14px' }}
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Longitude, e.g. 90.3681"
+                    value={formData.longitude}
+                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                    style={{ flex: '1 1 160px', padding: '10px', border: '1px solid var(--border-strong)', borderRadius: '8px', fontSize: '14px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={useMyLocation}
+                    style={{ padding: '10px 16px', background: 'var(--btn-bg)', color: 'var(--text-2)', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}
+                  >
+                    Use my location
+                  </button>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '8px 0 0' }}>
+                  Shown on the residents' map. To find coordinates, right-click the spot on openstreetmap.org or Google Maps and copy them.
+                </p>
               </div>
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: 'var(--text-2)' }}>
@@ -390,6 +453,21 @@ export default function Resources() {
                       )}
                       <div style={{ fontSize: '12px', color: '#94A3B8' }}>
                         {resource.wardName} • {resource.contactInfo}{resource.address ? ` • ${resource.address}` : ''}
+                        {hasCoords(resource.latitude, resource.longitude) ? (
+                          <>
+                            {' • '}
+                            <a
+                              href={osmLink(resource.latitude!, resource.longitude!)}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: '#0F766E', fontWeight: 600 }}
+                            >
+                              View on map
+                            </a>
+                          </>
+                        ) : (
+                          ' • No map location'
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { getSosAlerts, updateSosAlert, createIncident } from '../lib/api';
+import { hasCoords, osmLink } from '../lib/map';
 
 interface SosAlert {
   id: number;
@@ -9,6 +10,8 @@ interface SosAlert {
   type: string;
   status: string;
   note: string | null;
+  latitude: string | null;
+  longitude: string | null;
   createdAt: string;
   userName: string | null;
   wardName: string | null;
@@ -87,7 +90,14 @@ export default function Sos() {
     if (!promoting) return;
     setSubmitting(true);
     try {
-      await createIncident({ ...incidentForm, status: 'Active' } as any);
+      await createIncident({
+        ...incidentForm,
+        status: 'Active',
+        // keep the alert's location so the incident shows up on residents' map
+        ...(hasCoords(promoting.latitude, promoting.longitude)
+          ? { latitude: Number(promoting.latitude), longitude: Number(promoting.longitude) }
+          : {}),
+      } as any);
       // The SOS is now being handled via a public incident — reflect that.
       await updateSosAlert(promoting.id, 'dispatched');
       setAlerts((prev) => prev.map((a) => (a.id === promoting.id ? { ...a, status: 'dispatched' } : a)));
@@ -269,6 +279,14 @@ export default function Sos() {
                     )}
                     <div style={{ fontSize: '12px', color: '#94A3B8' }}>
                       {alert.userName || 'Unknown resident'} • {alert.wardName || 'No ward'} • {new Date(alert.createdAt).toLocaleString()}
+                      {hasCoords(alert.latitude, alert.longitude) && (
+                        <>
+                          {' • '}
+                          <a href={osmLink(alert.latitude!, alert.longitude!)} target="_blank" rel="noreferrer" style={{ color: 'var(--link)', fontWeight: 600 }}>
+                            View location
+                          </a>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

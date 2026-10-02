@@ -15,6 +15,8 @@ const createResourceSchema = z.object({
   contactInfo: z.string().min(1, "Contact info is required"),
   address: z.string().optional(),
   description: z.string().optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
 });
 
 const updateResourceSchema = z.object({
@@ -23,6 +25,8 @@ const updateResourceSchema = z.object({
   contactInfo: z.string().min(1).optional(),
   address: z.string().optional(),
   description: z.string().optional(),
+  latitude: z.coerce.number().min(-90).max(90).nullable().optional(),
+  longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
 });
 
 // ── Routes ──────────────────────────────────────────────────────────
@@ -53,6 +57,8 @@ export function registerResourceRoutes(app: Express) {
           contactInfo: resources.contactInfo,
           address: resources.address,
           description: resources.description,
+          latitude: resources.latitude,
+          longitude: resources.longitude,
           createdAt: resources.createdAt,
           wardName: wards.name,
         })
@@ -94,6 +100,8 @@ export function registerResourceRoutes(app: Express) {
           contactInfo: resources.contactInfo,
           address: resources.address,
           description: resources.description,
+          latitude: resources.latitude,
+          longitude: resources.longitude,
           createdAt: resources.createdAt,
           wardName: wards.name,
         })
@@ -134,9 +142,12 @@ export function registerResourceRoutes(app: Express) {
       const user = req.dbUser!;
       const wardId = user.wardId ?? 1;
 
+      const { latitude, longitude, ...rest } = parsed.data;
       const result = await db.insert(resources).values({
         wardId,
-        ...parsed.data,
+        ...rest,
+        latitude: latitude != null ? String(latitude) : undefined,
+        longitude: longitude != null ? String(longitude) : undefined,
       });
 
       const resourceId = Number(result[0].insertId);
@@ -174,7 +185,11 @@ export function registerResourceRoutes(app: Express) {
         return;
       }
 
-      await db.update(resources).set(parsed.data).where(eq(resources.id, resourceId));
+      const { latitude, longitude, ...rest } = parsed.data;
+      const updateData: Record<string, unknown> = { ...rest };
+      if (latitude !== undefined) updateData.latitude = latitude === null ? null : String(latitude);
+      if (longitude !== undefined) updateData.longitude = longitude === null ? null : String(longitude);
+      await db.update(resources).set(updateData).where(eq(resources.id, resourceId));
       res.json({ success: true });
     } catch (err) {
       if (err instanceof AppError) {

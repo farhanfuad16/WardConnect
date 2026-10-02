@@ -194,14 +194,14 @@ export async function getResources(params?: { wardId?: number; category?: string
   return apiRequest(`/resources${qs ? `?${qs}` : ''}`);
 }
 
-export async function createResource(data: { name: string; category: string; contactInfo: string; address?: string; description?: string }) {
+export async function createResource(data: { name: string; category: string; contactInfo: string; address?: string; description?: string; latitude?: number; longitude?: number }) {
   return apiRequest('/resources', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateResource(id: number, data: { name?: string; category?: string; contactInfo?: string; address?: string; description?: string }) {
+export async function updateResource(id: number, data: { name?: string; category?: string; contactInfo?: string; address?: string; description?: string; latitude?: number | null; longitude?: number | null }) {
   return apiRequest(`/resources/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),

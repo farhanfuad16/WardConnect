@@ -71,3 +71,6 @@ TEST_ACCOUNTS.md
 
 # Expo Go QR code - contains this PC's LAN IP (regenerate with: node scripts/update-lan-ip.mjs)
 expo-qr-code.png
+
+# Claude Code backlog/notes (local only)
+CLAUDE.md

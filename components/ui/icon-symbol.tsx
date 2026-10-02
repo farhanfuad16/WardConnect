@@ -28,6 +28,8 @@ const MAPPING = {
   "camera.fill": "photo-camera",
   "trash": "delete",
   "paperplane.fill": "send",
+  "arrow.triangle.turn.up.right.diamond.fill": "directions",
+  "arrow.clockwise": "refresh",
 } as IconMapping;
 
 export function IconSymbol({ name, size = 24, color, style }: { name: IconSymbolName; size?: number; color: string | OpaqueColorValue; style?: StyleProp<TextStyle>; weight?: SymbolWeight }) {

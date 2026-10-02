@@ -161,6 +161,8 @@ export const resources = mysqlTable(
     contactInfo: varchar("contactInfo", { length: 255 }).notNull(),
     address: varchar("address", { length: 512 }),
     description: text("description"),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [

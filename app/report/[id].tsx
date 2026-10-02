@@ -3,6 +3,8 @@ import { useLocalSearchParams, router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { BackButton } from "@/components/back-button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { LeafletMap } from "@/components/leaflet-map";
+import { toCoords } from "@/lib/geo";
 import { useIssue } from "@/hooks/useApi";
 import { statusLabel } from "@/lib/api";
 import { timeAgoWithDate } from "@/lib/time";
@@ -74,6 +76,7 @@ export default function ReportDetail() {
     );
   }
 
+  const coords = toCoords(item.latitude, item.longitude);
   const submittedStr = timeAgoWithDate(item.createdAt);
   const wasUpdated = item.status !== "submitted";
   const updatedStr = timeAgoWithDate(item.updatedAt);
@@ -113,7 +116,7 @@ export default function ReportDetail() {
           <View style={s.divider} />
           <Text style={s.metaLabel}>Location</Text>
           <Text style={s.value}>{item.landmark || item.wardName || "Ward"}</Text>
-          {item.latitude && item.longitude && <Text style={s.coords}>{item.latitude}, {item.longitude}</Text>}
+          {coords ? <Text style={s.coords}>{coords.latitude.toFixed(5)}, {coords.longitude.toFixed(5)}</Text> : null}
           <Text style={s.metaLabel}>Submitted</Text>
           <Text style={s.value}>{submittedStr}</Text>
           {wasUpdated && (
@@ -123,6 +126,12 @@ export default function ReportDetail() {
             </>
           )}
         </View>
+        {coords ? (
+          <>
+            <Text style={s.section}>Reported location</Text>
+            <LeafletMap height={180} pin={coords} view={{ ...coords, zoom: 16 }} />
+          </>
+        ) : null}
         <Text style={s.section}>Timeline</Text>
         <View style={s.card}>
           {timeline.map((event, i) => (

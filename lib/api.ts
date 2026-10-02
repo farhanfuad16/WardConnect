@@ -38,8 +38,8 @@ export interface Issue {
   severity: "normal" | "emergency";
   landmark?: string;
   photoUrl?: string;
-  latitude?: string;
-  longitude?: string;
+  latitude?: string | null;
+  longitude?: string | null;
   createdAt: string;
   updatedAt: string;
   userName?: string;
@@ -67,8 +67,8 @@ export interface Incident {
   description: string;
   status: string;
   accent?: string;
-  latitude?: string;
-  longitude?: string;
+  latitude?: string | null;
+  longitude?: string | null;
   verifiedBy?: number;
   createdAt: string;
   wardName?: string;
@@ -82,6 +82,8 @@ export interface Resource {
   contactInfo: string;
   address?: string;
   description?: string;
+  latitude?: string | null;
+  longitude?: string | null;
   createdAt: string;
   wardName?: string;
 }
@@ -102,8 +104,8 @@ export interface SosAlert {
   type: string;
   status: "pending" | "dispatched" | "resolved" | "cancelled";
   note?: string;
-  latitude?: string;
-  longitude?: string;
+  latitude?: string | null;
+  longitude?: string | null;
   createdAt: string;
   userName?: string;
   wardName?: string;

@@ -3,6 +3,9 @@ import { useLocalSearchParams, router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { BackButton } from "@/components/back-button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { LeafletMap } from "@/components/leaflet-map";
+import { toCoords } from "@/lib/geo";
+import { openDirections } from "@/lib/directions";
 import { useIncident, useVolunteerCount, useVolunteers, useSubmitVolunteerInterest, useDeleteVolunteerInterest } from "@/hooks/useApi";
 import { useAppColors } from "@/hooks/use-app-colors";
 import { showAlert } from "@/lib/alert";
@@ -89,6 +92,7 @@ export default function IncidentDetail() {
   }
 
   const location = item.wardName || "Ward area";
+  const coords = toCoords(item.latitude, item.longitude);
 
   return (
     <ScreenContainer>
@@ -116,6 +120,16 @@ export default function IncidentDetail() {
         <View style={s.card}>
           <Text style={s.body}>{item.description}</Text>
         </View>
+        {coords ? (
+          <>
+            <Text style={s.section}>Where</Text>
+            <LeafletMap height={190} pin={coords} view={{ ...coords, zoom: 16 }} />
+            <Pressable onPress={() => openDirections(coords)} style={s.directions}>
+              <IconSymbol name="arrow.triangle.turn.up.right.diamond.fill" size={18} color={C.teal} />
+              <Text style={s.directionsText}>Get directions</Text>
+            </Pressable>
+          </>
+        ) : null}
         <Text style={s.section}>Response timeline</Text>
         <View style={s.card}>
           <View style={s.timeline}><View style={s.timelineDot} /><View style={{ flex: 1 }}><Text style={s.timelineLabel}>Reported</Text><Text style={s.timelineTime}>Pending update</Text></View><View style={s.timelineLine} /></View>
@@ -187,6 +201,8 @@ function makeStyles(C: ReturnType<typeof useAppColors>) {
     helpText: { color: C.onColor, fontSize: 15, fontWeight: "700" },
     helping: { height: 52, backgroundColor: C.tealTint, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 23, borderWidth: 1.5, borderColor: C.teal },
     helpingText: { color: C.teal, fontSize: 15, fontWeight: "700" },
+    directions: { height: 46, backgroundColor: C.tealTint, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 },
+    directionsText: { color: C.teal, fontSize: 14, fontWeight: "700" },
     helpNote: { color: C.muted, textAlign: "center", fontSize: 11, marginTop: 10 },
   });
 }
