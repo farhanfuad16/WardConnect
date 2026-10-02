@@ -1,13 +1,13 @@
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Platform, View } from "react-native";
+import { Platform, View, type ColorValue } from "react-native";
 import { useAppColors } from "@/hooks/use-app-colors";
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
 type TabIconName = "house.fill" | "doc.text.fill" | "map.fill" | "bell.fill" | "person.fill";
 
-function TabIcon({ name, color, focused }: { name: TabIconName; color: string; focused: boolean }) {
+function TabIcon({ name, color, focused }: { name: TabIconName; color: ColorValue; focused: boolean }) {
   const C = useAppColors();
   // Fixed size, not padding: the tab bar gives this icon a ~31px-wide slot, and on
   // native Android the 36px of horizontal padding used up the whole slot, squeezing
@@ -23,7 +23,7 @@ export default function TabLayout() {
   const C = useAppColors();
   const insets = useSafeAreaInsets();
   const bottom = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
-  const icon = (name: TabIconName) => ({ color, focused }: { color: string; focused: boolean }) => <TabIcon name={name} color={color} focused={focused} />;
+  const icon = (name: TabIconName) => ({ color, focused }: { color: ColorValue; focused: boolean }) => <TabIcon name={name} color={color} focused={focused} />;
   return (
     <Tabs
       screenOptions={{

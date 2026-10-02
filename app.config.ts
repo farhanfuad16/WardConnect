@@ -88,6 +88,8 @@ const config: ExpoConfig = {
     "expo-image",
     "expo-secure-store",
     "expo-web-browser",
+    "expo-asset",
+    "expo-status-bar",
     [
       "expo-location",
       {
