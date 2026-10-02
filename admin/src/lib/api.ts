@@ -113,6 +113,10 @@ export async function createIncident(data: {
   severity: 'High' | 'Medium' | 'Low';
   description: string;
   status: string;
+  latitude?: number;
+  longitude?: number;
+  /** false publishes it as "pending" until an admin verifies it (default true) */
+  verified?: boolean;
 }) {
   return apiRequest('/incidents', {
     method: 'POST',
@@ -120,7 +124,17 @@ export async function createIncident(data: {
   });
 }
 
-export async function updateIncident(id: number, data: any) {
+export async function updateIncident(id: number, data: {
+  title?: string;
+  category?: string;
+  severity?: 'High' | 'Medium' | 'Low';
+  description?: string;
+  status?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  /** true records you as the verifier; false marks it pending again */
+  verified?: boolean;
+}) {
   return apiRequest(`/incidents/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),

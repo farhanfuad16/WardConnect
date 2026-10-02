@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { incidents, wards } from "../../drizzle/schema";
+import { incidents, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { requireAdmin } from "../middleware/admin";
 import { AppError } from "../middleware/errorHandler";
@@ -18,6 +18,8 @@ const createIncidentSchema = z.object({
   accent: z.string().optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
+  // false = publish as "pending" until an admin verifies it (e.g. promoted from an SOS)
+  verified: z.boolean().optional(),
 });
 
 const updateIncidentSchema = z.object({
@@ -27,8 +29,10 @@ const updateIncidentSchema = z.object({
   description: z.string().min(10).optional(),
   status: z.string().min(1).optional(),
   accent: z.string().optional(),
-  latitude: z.coerce.number().min(-90).max(90).optional(),
-  longitude: z.coerce.number().min(-180).max(180).optional(),
+  latitude: z.coerce.number().min(-90).max(90).nullable().optional(), // null clears the location
+  longitude: z.coerce.number().min(-180).max(180).nullable().optional(),
+  // true records the requesting admin as the verifier; false marks it pending again
+  verified: z.boolean().optional(),
 });
 
 // ── Routes ──────────────────────────────────────────────────────────
@@ -63,11 +67,13 @@ export function registerIncidentRoutes(app: Express) {
           latitude: incidents.latitude,
           longitude: incidents.longitude,
           verifiedBy: incidents.verifiedBy,
+          verifiedByName: users.name,
           createdAt: incidents.createdAt,
           wardName: wards.name,
         })
         .from(incidents)
         .leftJoin(wards, eq(incidents.wardId, wards.id))
+        .leftJoin(users, eq(incidents.verifiedBy, users.id))
         .where(where)
         .orderBy(desc(incidents.createdAt))
         .limit(limit)
@@ -108,11 +114,13 @@ export function registerIncidentRoutes(app: Express) {
           latitude: incidents.latitude,
           longitude: incidents.longitude,
           verifiedBy: incidents.verifiedBy,
+          verifiedByName: users.name,
           createdAt: incidents.createdAt,
           wardName: wards.name,
         })
         .from(incidents)
         .leftJoin(wards, eq(incidents.wardId, wards.id))
+        .leftJoin(users, eq(incidents.verifiedBy, users.id))
         .where(eq(incidents.id, Number(req.params.id)))
         .limit(1);
 
@@ -147,19 +155,21 @@ export function registerIncidentRoutes(app: Express) {
 
       const user = req.dbUser!;
       const wardId = user.wardId ?? 1;
+      const { verified = true, ...fields } = parsed.data;
+      const verifiedBy = verified ? user.id : null;
 
       const result = await db.insert(incidents).values({
         wardId,
-        verifiedBy: user.id,
-        ...parsed.data,
-        latitude: parsed.data.latitude != null ? String(parsed.data.latitude) : undefined,
-        longitude: parsed.data.longitude != null ? String(parsed.data.longitude) : undefined,
+        verifiedBy,
+        ...fields,
+        latitude: fields.latitude != null ? String(fields.latitude) : undefined,
+        longitude: fields.longitude != null ? String(fields.longitude) : undefined,
       });
 
       const incidentId = Number(result[0].insertId);
 
       res.status(201).json({
-        incident: { id: incidentId, wardId, verifiedBy: user.id, ...parsed.data },
+        incident: { id: incidentId, wardId, verifiedBy, ...fields },
       });
     } catch (err) {
       if (err instanceof AppError) {
@@ -191,9 +201,16 @@ export function registerIncidentRoutes(app: Express) {
         return;
       }
 
-      const updateData: Record<string, unknown> = { ...parsed.data };
+      const { verified, ...fields } = parsed.data;
+      const updateData: Record<string, unknown> = { ...fields };
       if (updateData.latitude != null) updateData.latitude = String(updateData.latitude);
       if (updateData.longitude != null) updateData.longitude = String(updateData.longitude);
+      if (verified !== undefined) updateData.verifiedBy = verified ? req.dbUser!.id : null;
+
+      if (Object.keys(updateData).length === 0) {
+        res.status(400).json({ error: "No valid fields to update" });
+        return;
+      }
 
       await db.update(incidents).set(updateData).where(eq(incidents.id, incidentId));
       res.json({ success: true });

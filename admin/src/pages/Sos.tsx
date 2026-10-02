@@ -93,17 +93,20 @@ export default function Sos() {
     try {
       await createIncident({
         ...incidentForm,
+        severity: incidentForm.severity as 'High' | 'Medium' | 'Low',
         status: 'Active',
+        // Based on one resident's alert: shown as "Pending" on the Incidents page until verified there
+        verified: false,
         // keep the alert's location so the incident shows up on residents' map
         ...(hasCoords(promoting.latitude, promoting.longitude)
           ? { latitude: Number(promoting.latitude), longitude: Number(promoting.longitude) }
           : {}),
-      } as any);
+      });
       // The SOS is now being handled via a public incident — reflect that.
       await updateSosAlert(promoting.id, 'dispatched');
       setAlerts((prev) => prev.map((a) => (a.id === promoting.id ? { ...a, status: 'dispatched' } : a)));
       setPromoting(null);
-      alert('Incident published. Residents in this ward will now see it on their map.');
+      alert('Incident published. Residents will now see it on their map. Verify it on the Incidents page once confirmed.');
     } catch (err: any) {
       alert(`Failed to create incident: ${err.message}`);
     } finally {
