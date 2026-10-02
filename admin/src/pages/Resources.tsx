@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { getResources, createResource, updateResource, deleteResource } from '../lib/api';
 import { hasCoords, osmLink } from '../lib/map';
+import MapPicker from '../components/MapPicker';
 
 interface Resource {
   id: number;
@@ -288,8 +289,15 @@ export default function Resources() {
                   </button>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '8px 0 0' }}>
-                  Shown on the residents' map. To find coordinates, right-click the spot on openstreetmap.org or Google Maps and copy them.
+                  Shown on the residents' map. Pick the spot on the map below, type coordinates, or use your location.
                 </p>
+              <div style={{ marginTop: '12px' }}>
+                <MapPicker
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onChange={(latitude, longitude) => setFormData((f) => ({ ...f, latitude, longitude }))}
+                />
+              </div>
               </div>
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: 'var(--text-2)' }}>

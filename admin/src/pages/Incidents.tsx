@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { getIncidents, createIncident, updateIncident, deleteIncident } from '../lib/api';
 import { hasCoords, osmLink } from '../lib/map';
+import MapPicker from '../components/MapPicker';
 import { timeAgoWithDate } from '../lib/time';
 
 interface Incident {
@@ -341,8 +342,15 @@ export default function Incidents() {
                   </button>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '8px 0 0' }}>
-                  Without a location the incident is listed but has no pin on the residents' map. To find coordinates, right-click the spot on openstreetmap.org or Google Maps and copy them.
+                  Without a location the incident is listed but has no pin on the residents' map. Pick the spot on the map below, type coordinates, or use your location.
                 </p>
+              <div style={{ marginTop: '12px' }}>
+                <MapPicker
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onChange={(latitude, longitude) => setFormData((f) => ({ ...f, latitude, longitude }))}
+                />
+              </div>
               </div>
               {!editing && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '14px', color: 'var(--text-2)', cursor: 'pointer' }}>
