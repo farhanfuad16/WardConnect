@@ -136,8 +136,9 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
     box-shadow: 0 1px 5px rgba(0,0,0,.4); color: #fff; font: 700 11px/20px system-ui, sans-serif; text-align: center; }
   .wc-pin.sq { border-radius: 8px; }
   .wc-pin.ic { width: 30px; height: 30px; background: #fff !important; font-size: 16px; line-height: 24px; }
-  .wc-drop { width: 22px; height: 22px; box-sizing: border-box; border: 3px solid #fff; border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg); background: #D9485F; box-shadow: 0 1px 5px rgba(0,0,0,.45); }
+  .wc-drop { width: 30px; height: 42px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  .wc-drop.in { animation: wc-drop .28s ease-out; }
+  @keyframes wc-drop { from { transform: translateY(-22px); opacity: .3; } to { transform: none; opacity: 1; } }
   .wc-pop { font-size: 13px; line-height: 1.35; }
   .wc-pop b { display: block; font-size: 14px; }
   .wc-pop span { color: #64748B; }
@@ -178,7 +179,11 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
 
   var group = L.layerGroup().addTo(map);
   var me = null, pin = null, pickable = false, lastViewKey = null;
-  var dropIcon = L.divIcon({ className: '', html: '<div class="wc-drop"></div>', iconSize: [22, 22], iconAnchor: [11, 22] });
+  // Classic red map pin (like Google Maps); the tip marks the exact spot.
+  var PIN_SVG = '<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 1C7.3 1 1 7.2 1 14.9 1 25.3 15 41 15 41s14-15.7 14-26.1C29 7.2 22.7 1 15 1z" fill="#EA4335" stroke="#B31412" stroke-width="1.5"/><circle cx="15" cy="15" r="5.2" fill="#7A0E0E"/></svg>';
+  function dropIcon(animate) {
+    return L.divIcon({ className: '', html: '<div class="wc-drop' + (animate ? ' in' : '') + '">' + PIN_SVG + '</div>', iconSize: [30, 42], iconAnchor: [15, 41] });
+  }
 
   var ENT = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
   function esc(t) {
@@ -187,7 +192,7 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
 
   function placePin(lat, lng, emit) {
     if (!pin) {
-      pin = L.marker([lat, lng], { draggable: pickable, icon: dropIcon }).addTo(map);
+      pin = L.marker([lat, lng], { draggable: pickable, icon: dropIcon(emit), zIndexOffset: 1000 }).addTo(map);
       pin.on('dragend', function () {
         var p = pin.getLatLng();
         post({ type: 'pick', latitude: p.lat, longitude: p.lng });
@@ -199,7 +204,10 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
     if (emit) post({ type: 'pick', latitude: lat, longitude: lng });
   }
 
-  map.on('click', function (e) { if (pickable) placePin(e.latlng.lat, e.latlng.lng, true); });
+  // Tap or long-press (contextmenu) drops the pin, like Google Maps
+  function onPick(e) { if (pickable) placePin(e.latlng.lat, e.latlng.lng, true); }
+  map.on('click', onPick);
+  map.on('contextmenu', onPick);
   map.on('popupopen', function (e) {
     var a = e.popup.getElement().querySelector('.wc-link');
     if (a) a.onclick = function () { post({ type: 'select', kind: a.getAttribute('data-k'), id: a.getAttribute('data-i') }); };

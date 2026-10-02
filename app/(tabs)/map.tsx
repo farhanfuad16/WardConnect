@@ -163,8 +163,18 @@ export default function MapScreen() {
     [resources],
   );
 
+  // While the locate button is working, follow each position as it arrives: the
+  // phone's cached fix first (instant), then the GPS fix.
+  const [locating, setLocating] = useState(false);
+  useEffect(() => {
+    if (locating && device.coords) setLocate({ coords: device.coords, n: Date.now() });
+  }, [locating, device.coords]);
+
   const onLocate = async () => {
+    if (device.coords) setLocate({ coords: device.coords, n: Date.now() });
+    setLocating(true);
     const result = await device.refresh();
+    setLocating(false);
     if (result?.status === "ok") return setLocate({ coords: result.coords, n: Date.now() });
     if (!result) return;
     showAlert(
@@ -269,8 +279,8 @@ export default function MapScreen() {
                 viewKey={`${mode}:${markers.length}:${locate?.n ?? 0}`}
                 onMarkerPress={onMarkerPress}
               />
-              <Pressable onPress={onLocate} accessibilityLabel="Show my location" style={s.locate}>
-                <IconSymbol name="location.fill" size={20} color={C.teal} />
+              <Pressable onPress={onLocate} disabled={locating} accessibilityLabel="Show my location" style={s.locate}>
+                {locating ? <ActivityIndicator size="small" color={C.teal} /> : <IconSymbol name="location.fill" size={20} color={C.teal} />}
               </Pressable>
             </View>
             {pin ? (

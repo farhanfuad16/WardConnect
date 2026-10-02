@@ -7,7 +7,9 @@ export type LocationResult =
   | { status: "denied" }
   | { status: "unavailable"; message: string };
 
-const TIMEOUT_MS = 15000;
+// How long to wait for a GPS fix, then for the quicker network (Wi-Fi/cell) fix.
+const GPS_TIMEOUT_MS = 10000;
+const NETWORK_EXTRA_MS = 4000;
 // A cached fix younger than this is good enough to show while GPS warms up.
 const LAST_KNOWN_MAX_AGE_MS = 5 * 60 * 1000;
 
@@ -31,12 +33,18 @@ export async function getCurrentCoords(): Promise<LocationResult> {
       return { status: "unavailable", message: "Location (GPS) is turned off on this phone. Turn it on in quick settings and try again." };
     }
 
-    // High = GPS. Balanced often returns a Wi-Fi/cell estimate hundreds of metres off.
-    const pos = await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out getting your position")), TIMEOUT_MS)),
-    ]);
-    return toResult(pos);
+    // Ask for GPS (High) and the faster Wi-Fi/cell estimate (Balanced) together.
+    // GPS is preferred, being metres rather than hundreds of metres off, but
+    // indoors it may never come, and then the network fix is used.
+    const gps = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const network = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    gps.catch(() => {});
+    network.catch(() => {});
+    try {
+      return toResult(await withTimeout(gps, GPS_TIMEOUT_MS));
+    } catch {
+      return toResult(await withTimeout(network, NETWORK_EXTRA_MS));
+    }
   } catch (err: any) {
     // GPS can be slow indoors; a recent cached fix beats no location at all.
     const cached = await getLastKnownCoords();
@@ -60,6 +68,10 @@ export async function getLastKnownCoords(): Promise<Extract<LocationResult, { st
   } catch {
     return null;
   }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out getting your position")), ms))]);
 }
 
 function toResult(pos: Location.LocationObject): Extract<LocationResult, { status: "ok" }> {
