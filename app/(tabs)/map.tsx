@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -8,11 +8,16 @@ import { LeafletMap } from "@/components/leaflet-map";
 import { useIncidents, useResources } from "@/hooks/useApi";
 import { useDeviceLocation } from "@/hooks/use-device-location";
 import { type Incident, type Resource } from "@/lib/api";
-import { distanceMeters, formatDistance, toCoords, type Coords } from "@/lib/geo";
+import { distanceMeters, formatCoords, formatDistance, toCoords, type Coords } from "@/lib/geo";
+import { placeSearchAvailable, searchPlaces, type Place } from "@/lib/geocode";
 import { openDirections } from "@/lib/directions";
 import type { MapMarker } from "@/lib/leaflet-html";
 import { showAlert } from "@/lib/alert";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
+
+// Map pin for each resource category (admin offers these four; anything else gets a generic pin)
+const RESOURCE_ICONS: Record<string, string> = { hospital: "🏥", fire_station: "🚒", police: "🚓", shelter: "🏠" };
+const resourceIcon = (category: string) => RESOURCE_ICONS[category] ?? "📍";
 
 function IncidentRow({ item }: { item: Incident }) {
   const { C, s } = useAppStyles(makeStyles);
@@ -70,20 +75,67 @@ export default function MapScreen() {
   // Set when the user taps "locate me", to centre the map on them.
   const [locate, setLocate] = useState<{ coords: Coords; n: number } | null>(null);
 
+  // Red pin dropped by tapping the map or picked from place search
+  const [pin, setPin] = useState<Coords | null>(null);
+  const [pinLabel, setPinLabel] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [placeError, setPlaceError] = useState("");
+
+  useEffect(() => {
+    if (placeQuery.trim().length < 2) {
+      setPlaces([]);
+      setPlaceError("");
+      return;
+    }
+    const ctrl = new AbortController();
+    // Debounced so typing doesn't fire a request per keystroke
+    const t = setTimeout(() => {
+      searchPlaces(placeQuery, pin ?? device.coords, ctrl.signal)
+        .then((found) => {
+          setPlaces(found);
+          setPlaceError(found.length ? "" : "No places found.");
+        })
+        .catch((e) => {
+          if (!ctrl.signal.aborted) setPlaceError(e.message);
+        });
+    }, 400);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+    // Only re-search when the text changes, not when the pin or GPS moves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeQuery]);
+
+  const pickPlace = (place: Place) => {
+    setPin(place.coords);
+    setPinLabel(place.name);
+    setLocate({ coords: place.coords, n: Date.now() });
+    setPlaceQuery("");
+  };
+
+  const dropPin = useCallback((c: Coords) => {
+    setPin(c);
+    setPinLabel(null);
+  }, []);
+
   const filteredResources = useMemo(() => {
     if (!search) return resources;
     return resources.filter((r) => `${r.name} ${r.category}`.toLowerCase().includes(search.toLowerCase()));
   }, [resources, search]);
 
-  // Nearest first once we know where the user is; rows without coordinates sink to the bottom.
+  // Nearest first, measured from the dropped pin if there is one, else from the user;
+  // rows without coordinates sink to the bottom.
+  const origin = pin ?? device.coords;
   const resourceRows = useMemo(() => {
     const rows = filteredResources.map((item) => {
       const coords = toCoords(item.latitude, item.longitude);
-      return { item, coords, distance: coords && device.coords ? distanceMeters(device.coords, coords) : undefined };
+      return { item, coords, distance: coords && origin ? distanceMeters(origin, coords) : undefined };
     });
-    if (device.coords) rows.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    if (origin) rows.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     return rows;
-  }, [filteredResources, device.coords]);
+  }, [filteredResources, origin]);
 
   const markers = useMemo<MapMarker[]>(() => {
     if (mode === "incidents") {
@@ -96,7 +148,7 @@ export default function MapScreen() {
     }
     return resourceRows.flatMap(({ item, coords }) =>
       coords
-        ? [{ id: item.id, kind: "resource", ...coords, color: C.teal, shape: "square" as const, label: item.category.charAt(0).toUpperCase(), title: item.name, subtitle: `${item.category.replace(/_/g, " ")} · ${item.contactInfo}`, action: "Get directions" }]
+        ? [{ id: item.id, kind: "resource", ...coords, color: C.teal, shape: "square" as const, icon: resourceIcon(item.category), title: item.name, subtitle: `${item.category.replace(/_/g, " ")} · ${item.contactInfo}`, action: "Get directions" }]
         : [],
     );
   }, [mode, incidents, resourceRows, C]);
@@ -186,11 +238,33 @@ export default function MapScreen() {
                 <Text style={[s.switchText, mode === "resources" && s.switchTextActive]}>Resources</Text>
               </Pressable>
             </View>
+            {placeSearchAvailable ? (
+              <View style={s.placeSearch}>
+                <View style={[s.searchBox, { marginBottom: 0 }]}>
+                  <IconSymbol name="magnifyingglass" size={18} color={C.muted} />
+                  <TextInput value={placeQuery} onChangeText={setPlaceQuery} placeholder="Search a place, e.g. Banani" placeholderTextColor={C.muted} style={s.input} returnKeyType="search" />
+                  {placeQuery ? (
+                    <Pressable onPress={() => setPlaceQuery("")} hitSlop={8} accessibilityLabel="Clear search">
+                      <IconSymbol name="xmark" size={16} color={C.muted} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                {places.map((place) => (
+                  <Pressable key={place.id} onPress={() => pickPlace(place)} style={s.placeRow}>
+                    <IconSymbol name="location.fill" size={15} color={C.teal} />
+                    <Text style={s.placeText} numberOfLines={1}>{place.name}</Text>
+                  </Pressable>
+                ))}
+                {placeError ? <Text style={[s.legendText, { marginTop: 6 }]}>{placeError}</Text> : null}
+              </View>
+            ) : null}
             <View>
               <LeafletMap
                 height={260}
                 markers={markers}
                 userLocation={device.coords}
+                pin={pin}
+                onPinChange={dropPin}
                 view={locate ? { latitude: locate.coords.latitude, longitude: locate.coords.longitude, zoom: 15 } : undefined}
                 viewKey={`${mode}:${markers.length}:${locate?.n ?? 0}`}
                 onMarkerPress={onMarkerPress}
@@ -199,6 +273,26 @@ export default function MapScreen() {
                 <IconSymbol name="location.fill" size={20} color={C.teal} />
               </Pressable>
             </View>
+            {pin ? (
+              <View style={s.pinCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.legendTitle} numberOfLines={1}>{pinLabel ?? "Pin dropped"}</Text>
+                  <Text style={s.legendText}>{formatCoords(pin)} · drag the pin to adjust</Text>
+                </View>
+                <PressableView
+                  onPress={() => router.push({ pathname: "/report/new", params: { lat: String(pin.latitude), lng: String(pin.longitude) } })}
+                  style={s.pinAction}
+                  pressedStyle={{ opacity: 0.75 }}
+                >
+                  <Text style={s.pinActionText}>Report here</Text>
+                </PressableView>
+                <Pressable onPress={() => { setPin(null); setPinLabel(null); }} hitSlop={8} accessibilityLabel="Remove pin">
+                  <IconSymbol name="xmark" size={18} color={C.muted} />
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={s.hint}>Tap the map to drop a pin{placeSearchAvailable ? ", or search a place above" : ""}.</Text>
+            )}
             {mode === "incidents" ? (
               <>
                 <View style={s.legend}>
@@ -212,7 +306,8 @@ export default function MapScreen() {
             ) : (
               <>
                 <View style={s.legend}>
-                  <Text style={s.legendTitle}>{device.coords ? "Sorted by distance from you" : "Local support services"}</Text>
+                  <Text style={s.legendTitle}>{pin ? "Sorted by distance from your pin" : device.coords ? "Sorted by distance from you" : "Local support services"}</Text>
+                  <Text style={s.legendText}>🏥 Hospital  ·  🚒 Fire station  ·  🚓 Police  ·  🏠 Shelter</Text>
                   <Text style={s.legendText}>
                     {markers.length} on the map{withoutLocation > 0 ? ` · ${withoutLocation} without a location yet` : ""}
                   </Text>
@@ -232,4 +327,4 @@ export default function MapScreen() {
   );
 }
 
-const makeStyles = (C: AppColors) => StyleSheet.create({ content: { paddingTop: 23, paddingBottom: 30 }, eyebrow: { color: C.muted, fontSize: 11, fontWeight: "600", letterSpacing: 1.2 }, title: { color: C.ink, fontSize: 30, fontWeight: "700", marginTop: 5 }, subtitle: { color: C.muted, fontSize: 14, marginTop: 6 }, switcher: { flexDirection: "row", backgroundColor: C.switcherBg, borderRadius: 12, padding: 3, marginTop: 18, marginBottom: 15 }, switchItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 }, switchActive: { backgroundColor: C.surface }, switchText: { color: C.muted, fontWeight: "600", fontSize: 13 }, switchTextActive: { color: C.ink }, locate: { position: "absolute", top: 10, right: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", zIndex: 5, ...C.shadow, borderWidth: 1, borderColor: C.border }, legend: { backgroundColor: C.surface, borderRadius: 14, padding: 12, marginTop: 10, marginBottom: 13, ...C.card }, legendTitle: { color: C.ink, fontSize: 12, fontWeight: "700" }, legendText: { color: C.muted, fontSize: 11, marginTop: 3 }, section: { color: C.ink, fontSize: 17, fontWeight: "700", marginBottom: 10 }, searchBox: { backgroundColor: C.surface, borderRadius: 13, padding: 12, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: C.border, marginBottom: 13 }, input: { flex: 1, color: C.ink, fontSize: 14 }, row: { backgroundColor: C.surface, borderRadius: 15, padding: 14, marginBottom: 9, flexDirection: "row", alignItems: "center", gap: 11, ...C.card }, dot: { width: 10, height: 10, borderRadius: 5 }, cat: { color: C.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 }, rowTitle: { color: C.ink, fontSize: 14, fontWeight: "700", marginTop: 3 }, meta: { color: C.muted, fontSize: 12, marginTop: 2 }, contact: { color: C.teal, fontSize: 12, fontWeight: "600", marginTop: 2 }, distance: { color: C.muted, fontSize: 11, fontWeight: "600", marginTop: 3 }, directions: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" }, resourceIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" } });
+const makeStyles = (C: AppColors) => StyleSheet.create({ content: { paddingTop: 23, paddingBottom: 30 }, eyebrow: { color: C.muted, fontSize: 11, fontWeight: "600", letterSpacing: 1.2 }, title: { color: C.ink, fontSize: 30, fontWeight: "700", marginTop: 5 }, subtitle: { color: C.muted, fontSize: 14, marginTop: 6 }, switcher: { flexDirection: "row", backgroundColor: C.switcherBg, borderRadius: 12, padding: 3, marginTop: 18, marginBottom: 15 }, switchItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 }, switchActive: { backgroundColor: C.surface }, switchText: { color: C.muted, fontWeight: "600", fontSize: 13 }, switchTextActive: { color: C.ink }, locate: { position: "absolute", top: 10, right: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", zIndex: 5, ...C.shadow, borderWidth: 1, borderColor: C.border }, legend: { backgroundColor: C.surface, borderRadius: 14, padding: 12, marginTop: 10, marginBottom: 13, ...C.card }, legendTitle: { color: C.ink, fontSize: 12, fontWeight: "700" }, legendText: { color: C.muted, fontSize: 11, marginTop: 3 }, section: { color: C.ink, fontSize: 17, fontWeight: "700", marginBottom: 10 }, searchBox: { backgroundColor: C.surface, borderRadius: 13, padding: 12, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: C.border, marginBottom: 13 }, input: { flex: 1, color: C.ink, fontSize: 14 }, row: { backgroundColor: C.surface, borderRadius: 15, padding: 14, marginBottom: 9, flexDirection: "row", alignItems: "center", gap: 11, ...C.card }, dot: { width: 10, height: 10, borderRadius: 5 }, cat: { color: C.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 }, rowTitle: { color: C.ink, fontSize: 14, fontWeight: "700", marginTop: 3 }, meta: { color: C.muted, fontSize: 12, marginTop: 2 }, contact: { color: C.teal, fontSize: 12, fontWeight: "600", marginTop: 2 }, distance: { color: C.muted, fontSize: 11, fontWeight: "600", marginTop: 3 }, directions: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" }, resourceIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" }, placeSearch: { marginBottom: 10 }, placeRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.surface, paddingVertical: 11, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: C.border }, placeText: { flex: 1, color: C.ink, fontSize: 13 }, pinCard: { backgroundColor: C.surface, borderRadius: 14, padding: 12, marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10, ...C.card }, pinAction: { backgroundColor: C.teal, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }, pinActionText: { color: C.onColor, fontSize: 12, fontWeight: "700" }, hint: { color: C.muted, fontSize: 11, marginTop: 8, textAlign: "center" } });

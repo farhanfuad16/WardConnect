@@ -10,6 +10,7 @@ import { LocationField } from "@/components/location-field";
 import { useDeviceLocation } from "@/hooks/use-device-location";
 import { useCreateIssue, useIssue, useUpdateIssue } from "@/hooks/useApi";
 import { resolveMediaUrl, uploadImage } from "@/lib/api";
+import { toCoords } from "@/lib/geo";
 import { showAlert } from "@/lib/alert";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
@@ -25,10 +26,18 @@ export default function NewReport() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const createIssue = useCreateIssue();
-  const device = useDeviceLocation();
+  // Edit mode: /report/new?edit=<id> (the reporter can edit while the report is still "submitted").
+  // From the map tab's "Report here": /report/new?lat=..&lng=.. starts with that pin.
+  const { edit, lat, lng } = useLocalSearchParams<{ edit?: string; lat?: string; lng?: string }>();
+  const presetPin = toCoords(lat, lng);
+  const device = useDeviceLocation({ auto: !presetPin });
 
-  // Edit mode: /report/new?edit=<id> (the reporter can edit while the report is still "submitted")
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  useEffect(() => {
+    if (presetPin) device.setCoords(presetPin);
+    // Apply the map pin once, on open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const editId = Number(edit) || 0;
   const isEdit = editId > 0;
   const { data: editData } = useIssue(editId);

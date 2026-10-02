@@ -17,6 +17,8 @@ export type MapMarker = {
   color: string;
   /** Short text inside the pin. */
   label?: string;
+  /** Emoji shown instead of `label`, on a white pin outlined in `color`. */
+  icon?: string;
   shape?: "circle" | "square";
   title: string;
   subtitle?: string;
@@ -88,19 +90,23 @@ export function parseMapEvent(raw: unknown): MapEvent | null {
   }
 }
 
-// Map tiles. Default is OpenStreetMap's own tile server: free, no key, but a
-// plain style. Setting EXPO_PUBLIC_MAPTILER_KEY (free key from maptiler.com)
-// switches to MapTiler's cleaner, Google-like "streets" style with a real dark
-// variant. `{r}` becomes "@2x" on high-density screens.
+// Map tiles. Default is OpenStreetMap's own tile server: free and keyless, but
+// it blocks this app ("Access blocked" tiles, backlog H4). Setting
+// EXPO_PUBLIC_MAPTILER_KEY (free key from maptiler.com) switches to MapTiler.
+// Its "openstreetmap" style is used rather than "streets-v2": streets-v2 labels
+// places in Bangla and MapTiler's renderer can't shape Bangla script (letters
+// come out split and misplaced), while this style labels them in English.
+// It has no dark variant, so dark mode inverts it like the OSM fallback.
+// `{r}` becomes "@2x" on high-density screens.
 const MAPTILER_KEY = process.env.EXPO_PUBLIC_MAPTILER_KEY || "";
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const TILES = MAPTILER_KEY
   ? {
-      light: `https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}{r}.png?key=${MAPTILER_KEY}`,
-      dark: `https://api.maptiler.com/maps/streets-v2-dark/256/{z}/{x}/{y}{r}.png?key=${MAPTILER_KEY}`,
+      light: `https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}{r}.png?key=${MAPTILER_KEY}`,
+      dark: `https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}{r}.png?key=${MAPTILER_KEY}`,
       attribution: `${OSM_ATTRIBUTION} &copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>`,
       detectRetina: false,
-      invertDark: false,
+      invertDark: true,
     }
   : {
       light: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -129,6 +135,7 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
   .wc-pin { width: 26px; height: 26px; box-sizing: border-box; border: 3px solid #fff; border-radius: 50%;
     box-shadow: 0 1px 5px rgba(0,0,0,.4); color: #fff; font: 700 11px/20px system-ui, sans-serif; text-align: center; }
   .wc-pin.sq { border-radius: 8px; }
+  .wc-pin.ic { width: 30px; height: 30px; background: #fff !important; font-size: 16px; line-height: 24px; }
   .wc-drop { width: 22px; height: 22px; box-sizing: border-box; border: 3px solid #fff; border-radius: 50% 50% 50% 0;
     transform: rotate(-45deg); background: #D9485F; box-shadow: 0 1px 5px rgba(0,0,0,.45); }
   .wc-pop { font-size: 13px; line-height: 1.35; }
@@ -207,10 +214,13 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
     group.clearLayers();
     var pts = [];
     (d.markers || []).forEach(function (m) {
+      var size = m.icon ? 30 : 26;
       var icon = L.divIcon({
         className: '',
-        html: '<div class="wc-pin' + (m.shape === 'square' ? ' sq' : '') + '" style="background:' + esc(m.color) + '">' + esc(m.label || '') + '</div>',
-        iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13]
+        html: m.icon
+          ? '<div class="wc-pin ic' + (m.shape === 'square' ? ' sq' : '') + '" style="border-color:' + esc(m.color) + '">' + esc(m.icon) + '</div>'
+          : '<div class="wc-pin' + (m.shape === 'square' ? ' sq' : '') + '" style="background:' + esc(m.color) + '">' + esc(m.label || '') + '</div>',
+        iconSize: [size, size], iconAnchor: [size / 2, size / 2], popupAnchor: [0, -size / 2]
       });
       var html = '<div class="wc-pop"><b>' + esc(m.title) + '</b>';
       if (m.subtitle) html += '<span>' + esc(m.subtitle) + '</span>';

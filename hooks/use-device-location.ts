@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Coords } from "@/lib/geo";
-import { getCurrentCoords, type LocationResult } from "@/lib/location";
+import { getCurrentCoords, getLastKnownCoords, type LocationResult } from "@/lib/location";
 
 export type DeviceLocationStatus = "idle" | "loading" | "ok" | "denied" | "unavailable";
 
@@ -20,6 +20,13 @@ export function useDeviceLocation({ auto = true }: { auto?: boolean } = {}) {
 
   const refresh = useCallback(async (): Promise<LocationResult | null> => {
     setStatus("loading");
+    // Show the phone's recent cached position at once; the GPS fix below replaces it.
+    const quick = await getLastKnownCoords();
+    if (quick && alive.current) {
+      setCoordsState(quick.coords);
+      setAccuracy(quick.accuracy);
+      setSource("device");
+    }
     const result = await getCurrentCoords();
     if (!alive.current) return null;
     if (result.status === "ok") {

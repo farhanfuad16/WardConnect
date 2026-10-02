@@ -64,7 +64,8 @@ async function apiGet<T>(path: string, token?: string): Promise<T> {
   });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || `Request failed: ${res.status}`);
+    // `status` lets callers tell "token rejected" (401) from other failures
+    throw Object.assign(new Error(data.error || `Request failed: ${res.status}`), { status: res.status });
   }
   return data as T;
 }
@@ -84,12 +85,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Native: check SecureStore for cached token
         const token = await Auth.getSessionToken();
         if (token) {
-          const data = await apiGet<{ user: AuthUser }>("/api/auth/me", token);
-          if (data.user) {
-            setUser(data.user);
-            await Auth.setUserInfo(data.user as any);
-          } else {
-            await Auth.removeSessionToken();
+          try {
+            const data = await apiGet<{ user: AuthUser }>("/api/auth/me", token);
+            if (data.user) {
+              setUser(data.user);
+              await Auth.setUserInfo(data.user as any);
+            } else {
+              await Auth.removeSessionToken();
+            }
+          } catch (err: any) {
+            if (err?.status === 401) {
+              // The token really expired (7 days) or was rejected: sign in again.
+              await Auth.removeSessionToken();
+              await Auth.clearUserInfo();
+            } else {
+              // API unreachable at launch (restarting, changed Wi-Fi/IP): stay signed
+              // in with the cached profile instead of bouncing to the login screen.
+              // Screens refetch on their own once the API is back.
+              const cached = await Auth.getUserInfo();
+              if (cached) setUser(cached as unknown as AuthUser);
+            }
           }
         } else {
           // Web: try cookie-based auth

@@ -187,7 +187,7 @@ export default function SOSScreen() {
         )}
 
         <View style={{ marginTop: 10 }}>
-          <LocationField device={device} attachedText="Sent with your alert so responders can find you." />
+          <LocationField device={device} adjustable attachedText="Sent with your alert so responders can find you." />
         </View>
         <PressableView onPress={send} disabled={createSos.isPending || uploading} style={[s.send, (createSos.isPending || uploading) && { opacity: 0.6 }]} pressedStyle={{ opacity: 0.85 }}>
           {createSos.isPending || uploading ? (
