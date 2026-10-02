@@ -1,4 +1,6 @@
-import type { Express, Request, Response } from "express";
+import express, { type Express, type Request, type Response } from "express";
+import fs from "node:fs/promises";
+import path from "node:path";
 import multer from "multer";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
@@ -26,17 +28,23 @@ const upload = multer({
   },
 });
 
-export function registerUploadRoutes(app: Express) {
-  // POST /api/uploads/image — upload an image to Cloudinary
-  app.post("/api/uploads/image", requireAuth, (req: Request, res: Response) => {
-    // Check if Cloudinary is configured
-    if (!isCloudinaryConfigured()) {
-      res.status(503).json({
-        error: "Image upload service is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.",
-      });
-      return;
-    }
+// Without Cloudinary credentials, images are saved here and served at /uploads/...
+export const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
+const EXT_BY_MIME: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
+
+export function registerUploadRoutes(app: Express) {
+  // Locally stored images. File names are generated server-side, never taken from the client.
+  app.use("/uploads", express.static(UPLOAD_DIR, { maxAge: "7d" }));
+
+  // POST /api/uploads/image — upload an image to Cloudinary, or to UPLOAD_DIR when it isn't configured
+  app.post("/api/uploads/image", requireAuth, (req: Request, res: Response) => {
     // Use multer middleware to handle single file upload
     upload.single("image")(req, res, async (err) => {
       if (err instanceof multer.MulterError) {
@@ -66,6 +74,27 @@ export function registerUploadRoutes(app: Express) {
         const timestamp = Date.now();
         const filename = `user_${userId}_${timestamp}`;
 
+        if (!isCloudinaryConfigured()) {
+          // Return a path, not a full URL, so saved photos survive a LAN IP change;
+          // clients prefix it with the API base URL when displaying it.
+          const format = EXT_BY_MIME[req.file.mimetype] ?? "jpg";
+          const name = `${filename}.${format}`;
+          await fs.mkdir(path.join(UPLOAD_DIR, "issues"), { recursive: true });
+          await fs.writeFile(path.join(UPLOAD_DIR, "issues", name), req.file.buffer);
+          res.status(201).json({
+            success: true,
+            data: {
+              url: `/uploads/issues/${name}`,
+              public_id: `issues/${name}`,
+              format,
+              width: null,
+              height: null,
+              bytes: req.file.size,
+            },
+          });
+          return;
+        }
+
         // Upload to Cloudinary
         const result = await uploadImage(
           req.file.buffer,
@@ -86,9 +115,9 @@ export function registerUploadRoutes(app: Express) {
           },
         });
       } catch (error) {
-        console.error("[Upload] Cloudinary upload failed:", error);
+        console.error("[Upload] Image upload failed:", error);
         res.status(500).json({
-          error: "Failed to upload image to Cloudinary. Please try again.",
+          error: "Failed to upload image. Please try again.",
         });
       }
     });

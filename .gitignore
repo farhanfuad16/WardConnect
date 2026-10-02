@@ -74,3 +74,6 @@ expo-qr-code.png
 
 # Claude Code backlog/notes (local only)
 CLAUDE.md
+
+# Photos uploaded to the local API (server/routes/uploads.ts)
+uploads/

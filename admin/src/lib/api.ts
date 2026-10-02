@@ -92,6 +92,10 @@ export async function updateIssueStatus(id: number, status: string) {
   });
 }
 
+export async function deleteIssue(id: number) {
+  return apiRequest(`/issues/${id}`, { method: 'DELETE' });
+}
+
 // Incidents
 export async function getIncidents(params?: { wardId?: number; severity?: string; verified?: boolean; limit?: number; offset?: number }) {
   const query = new URLSearchParams();

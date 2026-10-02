@@ -1,4 +1,7 @@
+import { Platform } from "react-native";
+import { File } from "expo-file-system";
 import { apiCall } from "./_core/api";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 export class ApiError extends Error {
   constructor(
@@ -201,6 +204,11 @@ export async function getIssue(id: number): Promise<{ issue: Issue }> {
   return apiRequest<{ issue: Issue }>(`/api/issues/${id}`);
 }
 
+/** Residents can delete their own report only while it's still "submitted". */
+export async function deleteIssue(id: number): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/api/issues/${id}`, { method: "DELETE" });
+}
+
 export async function createIssue(data: {
   category: string;
   title: string;
@@ -328,9 +336,14 @@ export interface UploadResult {
   url: string;
   public_id: string;
   format: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   bytes: number;
+}
+
+/** Photos stored by the API itself come back as "/uploads/..." paths; make them loadable. */
+export function resolveMediaUrl(url: string): string {
+  return url.startsWith("/") ? `${getApiBaseUrl()}${url}` : url;
 }
 
 export async function uploadImage(uri: string): Promise<UploadResult> {
@@ -342,20 +355,27 @@ export async function uploadImage(uri: string): Promise<UploadResult> {
   const fileType = uriParts[uriParts.length - 1];
   const mimeType = `image/${fileType === "jpg" ? "jpeg" : fileType}`;
   
-  // Append the image file
-  formData.append("image", {
-    uri,
-    name: `photo.${fileType}`,
-    type: mimeType,
-  } as any);
+  const name = `photo.${fileType}`;
+  if (Platform.OS === "web") {
+    // The web picker returns a blob:/data: URL
+    formData.append("image", await (await fetch(uri)).blob(), name);
+  } else {
+    // Expo SDK 57's fetch rejects React Native's { uri, name, type } part
+    // ("Unsupported FormDataPart implementation"); it reads parts that expose bytes().
+    const file = new File(uri);
+    formData.append("image", {
+      name,
+      type: mimeType,
+      bytes: async () => new Uint8Array(await file.arrayBuffer()),
+    } as any);
+  }
 
   // Use apiCall directly for multipart upload (not apiRequest which uses JSON)
   const { apiCall } = await import("./_core/api");
-  return apiCall<UploadResult>("/api/uploads/image", {
+  // apiCall leaves Content-Type unset for FormData so the multipart boundary is included
+  const res = await apiCall<{ success: boolean; data: UploadResult }>("/api/uploads/image", {
     method: "POST",
     body: formData,
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
   });
+  return res.data;
 }

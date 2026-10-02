@@ -6,8 +6,14 @@ import { issues, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { notifyUser } from "../services/notify";
+import { UPLOAD_DIR } from "./uploads";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 // ── Validation ──────────────────────────────────────────────────────
+
+// A Cloudinary URL, or a path to an image stored by this server (see routes/uploads.ts)
+const photoUrlSchema = z.union([z.string().url().regex(/^https?:\/\//), z.string().regex(/^\/uploads\/[A-Za-z0-9_\-/]+\.[a-z]+$/)]);
 
 const createIssueSchema = z.object({
   category: z.string().min(1, "Category is required"),
@@ -15,7 +21,7 @@ const createIssueSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   severity: z.enum(["normal", "emergency"]).default("normal"),
   landmark: z.string().optional(),
-  photoUrl: z.string().url().optional(),
+  photoUrl: photoUrlSchema.optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
@@ -27,7 +33,7 @@ const updateIssueSchema = z.object({
   description: z.string().min(10).optional(),
   severity: z.enum(["normal", "emergency"]).optional(),
   landmark: z.string().optional(),
-  photoUrl: z.string().url().optional(),
+  photoUrl: photoUrlSchema.optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
@@ -228,7 +234,7 @@ export function registerIssueRoutes(app: Express) {
 
       await db.update(issues).set(updateData).where(eq(issues.id, issueId));
 
-      if (typeof updateData.status === "string") {
+      if (typeof updateData.status === "string" && updateData.status !== existing[0].status) {
         notifyUser(
           db,
           existing[0].userId,
@@ -245,6 +251,53 @@ export function registerIssueRoutes(app: Express) {
       }
       console.error("[Issues] Update failed:", err);
       res.status(500).json({ error: "Failed to update issue" });
+    }
+  });
+
+  // DELETE /api/issues/:id — admin any time; the owner only while it's still "submitted"
+  app.delete("/api/issues/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      if (!db) throw new AppError(500, "Database not available");
+
+      const user = req.dbUser!;
+      const issueId = Number(req.params.id);
+      const existing = await db.select().from(issues).where(eq(issues.id, issueId)).limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ error: "Issue not found" });
+        return;
+      }
+
+      const issue = existing[0];
+      if (!user.isAdmin) {
+        if (issue.userId !== user.id) {
+          res.status(403).json({ error: "Not authorized to delete this issue" });
+          return;
+        }
+        if (issue.status !== "submitted") {
+          res.status(403).json({ error: "This report is already being handled by the ward office and can't be deleted." });
+          return;
+        }
+      }
+
+      await db.delete(issues).where(eq(issues.id, issueId));
+
+      // Remove a locally stored photo too (Cloudinary photos are left alone)
+      if (issue.photoUrl?.startsWith("/uploads/")) {
+        const file = path.join(UPLOAD_DIR, issue.photoUrl.slice("/uploads/".length));
+        if (file.startsWith(UPLOAD_DIR + path.sep)) {
+          fs.unlink(file).catch(() => {});
+        }
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      if (err instanceof AppError) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      }
+      console.error("[Issues] Delete failed:", err);
+      res.status(500).json({ error: "Failed to delete issue" });
     }
   });
 }

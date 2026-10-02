@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getIssues, updateIssueStatus } from '../lib/api';
+import { getIssues, updateIssueStatus, deleteIssue } from '../lib/api';
 import { hasCoords, osmLink } from '../lib/map';
 import { timeAgoWithDate } from '../lib/time';
 
@@ -70,6 +70,19 @@ export default function Issues() {
       await loadIssues(true);
     } catch (err: any) {
       alert(`Failed to update status: ${err.message}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleDelete = async (issue: Issue) => {
+    if (!confirm(`Delete report #${issue.id} "${issue.title}"? This can't be undone.`)) return;
+    setUpdatingId(issue.id);
+    try {
+      await deleteIssue(issue.id);
+      await loadIssues(true);
+    } catch (err: any) {
+      alert(`Failed to delete: ${err.message}`);
     } finally {
       setUpdatingId(null);
     }
@@ -230,6 +243,22 @@ export default function Issues() {
                       <option key={s} value={s}>{s.replace('_', ' ')}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => handleDelete(issue)}
+                    disabled={updatingId === issue.id}
+                    style={{
+                      padding: '8px 14px',
+                      background: 'var(--danger-bg-2)',
+                      color: 'var(--danger-text)',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: updatingId === issue.id ? 'wait' : 'pointer',
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}

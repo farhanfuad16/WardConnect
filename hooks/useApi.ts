@@ -18,6 +18,16 @@ export function useIssue(id: number) {
   });
 }
 
+export function useDeleteIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteIssue,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+    },
+  });
+}
+
 export function useCreateIssue() {
   const queryClient = useQueryClient();
   return useMutation({

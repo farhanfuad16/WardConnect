@@ -6,7 +6,7 @@ import { notices, wards, users } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { requireAdmin } from "../middleware/admin";
 import { AppError } from "../middleware/errorHandler";
-import { notifyWard } from "../services/notify";
+import { notifyEveryone } from "../services/notify";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -141,9 +141,10 @@ export function registerNoticeRoutes(app: Express) {
 
       const noticeId = Number(result[0].insertId);
 
-      // Fire-and-forget: notify every resident of this ward. Don't await
-      // this before responding — the notice was already saved successfully.
-      notifyWard(db, wardId, `New notice: ${parsed.data.title}`, parsed.data.body);
+      // Fire-and-forget: the Notices tab lists every notice for everyone, so
+      // notify everyone (not just this ward). Don't await this before
+      // responding — the notice was already saved successfully.
+      notifyEveryone(db, `New notice: ${parsed.data.title}`, parsed.data.body, user.id);
 
       res.status(201).json({
         notice: { id: noticeId, wardId, postedBy: user.id, ...parsed.data },

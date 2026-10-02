@@ -5,6 +5,14 @@ import { getDb } from "../db";
 import { sosAlerts, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import { notifyUser } from "../services/notify";
+
+const SOS_STATUS_MESSAGE: Record<"pending" | "dispatched" | "resolved" | "cancelled", string> = {
+  pending: "Your SOS alert is waiting for a responder.",
+  dispatched: "Help has been dispatched for your SOS alert.",
+  resolved: "Your SOS alert has been marked resolved.",
+  cancelled: "Your SOS alert was cancelled.",
+};
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -187,6 +195,12 @@ export function registerSosAlertRoutes(app: Express) {
       }
 
       await db.update(sosAlerts).set(parsed.data).where(eq(sosAlerts.id, alertId));
+
+      const status = parsed.data.status;
+      if (status && status !== existing[0].status) {
+        notifyUser(db, existing[0].userId, "Your SOS status changed", SOS_STATUS_MESSAGE[status]);
+      }
+
       res.json({ success: true });
     } catch (err) {
       if (err instanceof AppError) {

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, LogBox, View } from "react-native";
 import { Stack, router, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +7,11 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
 import { useAppColors } from "@/hooks/use-app-colors";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+
+// NativeWind (react-native-css-interop) reads React Native's deprecated SafeAreaView
+// export at startup. The app itself uses react-native-safe-area-context; the warning's
+// toast sits over the tab bar in Expo Go and swallows taps until dismissed.
+LogBox.ignoreLogs(["SafeAreaView has been deprecated"]);
 
 const queryClient = new QueryClient();
 
