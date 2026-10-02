@@ -115,10 +115,15 @@ export default function MapScreen() {
     setPlaceQuery("");
   };
 
-  const dropPin = useCallback((c: Coords) => {
-    setPin(c);
-    setPinLabel(null);
-  }, []);
+  const dropPin = useCallback(
+    (c: Coords) => {
+      setPin(c);
+      // Tapping the blue dot drops the pin exactly on the user's position
+      const onMe = device.coords && c.latitude === device.coords.latitude && c.longitude === device.coords.longitude;
+      setPinLabel(onMe ? "Your current location" : null);
+    },
+    [device.coords],
+  );
 
   const filteredResources = useMemo(() => {
     if (!search) return resources;
@@ -301,7 +306,7 @@ export default function MapScreen() {
                 </Pressable>
               </View>
             ) : (
-              <Text style={s.hint}>Tap the map to drop a pin{placeSearchAvailable ? ", or search a place above" : ""}.</Text>
+              <Text style={s.hint}>Tap the map (or the blue dot for your location) to drop a pin{placeSearchAvailable ? ", or search a place above" : ""}.</Text>
             )}
             {mode === "incidents" ? (
               <>

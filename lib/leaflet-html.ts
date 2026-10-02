@@ -240,8 +240,18 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
 
     if (me) { map.removeLayer(me); me = null; }
     if (d.me) {
-      me = L.circleMarker([d.me.latitude, d.me.longitude], { radius: 8, color: '#fff', weight: 3, fillColor: '#2563EB', fillOpacity: 1 }).addTo(map);
-      pts.push([d.me.latitude, d.me.longitude]);
+      var here = [d.me.latitude, d.me.longitude];
+      // Blue dot with a soft halo (also a bigger tap target). Tapping it drops
+      // the red pin exactly on the user's position.
+      me = L.featureGroup([
+        L.circleMarker(here, { radius: 20, stroke: false, fillColor: '#2563EB', fillOpacity: 0.15 }),
+        L.circleMarker(here, { radius: 8, color: '#fff', weight: 3, fillColor: '#2563EB', fillOpacity: 1 })
+      ]).addTo(map);
+      me.on('click', function (e) {
+        L.DomEvent.stopPropagation(e);
+        if (pickable) placePin(here[0], here[1], true);
+      });
+      pts.push(here);
     }
 
     if (d.pin) { placePin(d.pin.latitude, d.pin.longitude, false); pts.push([d.pin.latitude, d.pin.longitude]); }
