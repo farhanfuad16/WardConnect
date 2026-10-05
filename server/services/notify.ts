@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { notifications, users } from "../../drizzle/schema";
 
 // Loosely typed to whatever getDb() resolves to — avoids importing its
@@ -20,31 +20,20 @@ export async function notifyUser(db: Db, userId: number, title: string, body: st
 }
 
 /**
- * Create one notification for every user except `exceptUserId` (e.g. a new
- * notice: the app's Notices tab shows every notice to everyone, so everyone
- * gets told about it, not just the poster's ward).
+ * One notification per resident, either everyone ("all") or the residents of
+ * the given wards. Admins are handlers, not residents, so they're never
+ * included (they see everything on the dashboard anyway).
  */
-export async function notifyEveryone(db: Db, title: string, body: string, exceptUserId?: number): Promise<void> {
+export async function notifyResidents(db: Db, wards: number[] | "all", title: string, body: string): Promise<void> {
   try {
-    const allUsers: { id: number }[] = await db.select({ id: users.id }).from(users);
-    const targets = allUsers.filter((u) => u.id !== exceptUserId);
-    if (targets.length === 0) return;
-    await db.insert(notifications).values(targets.map((u) => ({ userId: u.id, title, body })));
+    if (wards !== "all" && wards.length === 0) return;
+    const residents: { id: number }[] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(wards === "all" ? eq(users.isAdmin, false) : and(eq(users.isAdmin, false), inArray(users.wardId, wards)));
+    if (residents.length === 0) return;
+    await db.insert(notifications).values(residents.map((u) => ({ userId: u.id, title, body })));
   } catch (error) {
-    console.error("[Notify] Failed to notify everyone:", error);
-  }
-}
-
-/**
- * Create one notification per resident of a ward (e.g. "a new notice was
- * posted for your ward").
- */
-export async function notifyWard(db: Db, wardId: number, title: string, body: string): Promise<void> {
-  try {
-    const wardUsers = await db.select({ id: users.id }).from(users).where(eq(users.wardId, wardId));
-    if (wardUsers.length === 0) return;
-    await db.insert(notifications).values(wardUsers.map((u: { id: number }) => ({ userId: u.id, title, body })));
-  } catch (error) {
-    console.error("[Notify] Failed to notify ward:", wardId, error);
+    console.error("[Notify] Failed to notify residents:", wards, error);
   }
 }

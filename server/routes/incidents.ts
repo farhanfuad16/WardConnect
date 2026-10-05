@@ -2,14 +2,17 @@ import type { Express, Request, Response } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { incidents, wards } from "../../drizzle/schema";
+import { incidents, incidentVolunteers, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { requireAdmin } from "../middleware/admin";
 import { AppError } from "../middleware/errorHandler";
+import { notifyResidents, notifyUser } from "../services/notify";
 
 // ── Validation ──────────────────────────────────────────────────────
 
 const createIncidentSchema = z.object({
+  // Where it happened, chosen by the admin (not the admin's own ward)
+  wardId: z.number().int().positive("Choose the ward where it happened"),
   title: z.string().min(2, "Title must be at least 2 characters"),
   category: z.string().min(1, "Category is required"),
   severity: z.enum(["High", "Medium", "Low"]),
@@ -23,6 +26,7 @@ const createIncidentSchema = z.object({
 });
 
 const updateIncidentSchema = z.object({
+  wardId: z.number().int().positive().optional(),
   title: z.string().min(2).optional(),
   category: z.string().min(1).optional(),
   severity: z.enum(["High", "Medium", "Low"]).optional(),
@@ -34,6 +38,13 @@ const updateIncidentSchema = z.object({
   // true records the requesting admin as the verifier; false marks it pending again
   verified: z.boolean().optional(),
 });
+
+/** Throws a 400 unless the ward exists; returns its name. */
+async function wardName(db: any, wardId: number): Promise<string> {
+  const rows = await db.select({ name: wards.name }).from(wards).where(eq(wards.id, wardId)).limit(1);
+  if (rows.length === 0) throw new AppError(400, "That ward doesn't exist");
+  return rows[0].name;
+}
 
 // ── Routes ──────────────────────────────────────────────────────────
 
@@ -150,9 +161,9 @@ export function registerIncidentRoutes(app: Express) {
       if (!db) throw new AppError(500, "Database not available");
 
       const user = req.dbUser!;
-      const wardId = user.wardId ?? 1;
-      const { verified = true, ...fields } = parsed.data;
+      const { verified = true, wardId, ...fields } = parsed.data;
       const verifiedBy = verified ? user.id : null;
+      const ward = await wardName(db, wardId);
 
       const result = await db.insert(incidents).values({
         wardId,
@@ -163,6 +174,16 @@ export function registerIncidentRoutes(app: Express) {
       });
 
       const incidentId = Number(result[0].insertId);
+
+      // Everyone sees every incident on the map. Notifications: the incident's
+      // ward always; High severity goes to everyone, because people from other
+      // wards pass through and are at risk too. Fire-and-forget.
+      notifyResidents(
+        db,
+        fields.severity === "High" ? "all" : [wardId],
+        `New incident: ${fields.title}`,
+        `${fields.severity} severity · ${ward}. ${fields.description}`,
+      );
 
       res.status(201).json({
         incident: { id: incidentId, wardId, verifiedBy, ...fields },
@@ -198,6 +219,7 @@ export function registerIncidentRoutes(app: Express) {
       }
 
       const { verified, ...fields } = parsed.data;
+      if (fields.wardId !== undefined) await wardName(db, fields.wardId);
       const updateData: Record<string, unknown> = { ...fields };
       if (updateData.latitude != null) updateData.latitude = String(updateData.latitude);
       if (updateData.longitude != null) updateData.longitude = String(updateData.longitude);
@@ -209,6 +231,18 @@ export function registerIncidentRoutes(app: Express) {
       }
 
       await db.update(incidents).set(updateData).where(eq(incidents.id, incidentId));
+
+      // Volunteers the admin accepted hear about progress on "their" incident
+      if (fields.status && fields.status !== existing[0].status) {
+        const helpers = await db
+          .select({ userId: incidentVolunteers.userId })
+          .from(incidentVolunteers)
+          .where(and(eq(incidentVolunteers.incidentId, incidentId), eq(incidentVolunteers.status, "approved")));
+        for (const h of helpers) {
+          notifyUser(db, h.userId, "Incident update", `"${existing[0].title}" is now ${fields.status}.`);
+        }
+      }
+
       res.json({ success: true });
     } catch (err) {
       if (err instanceof AppError) {
@@ -233,6 +267,7 @@ export function registerIncidentRoutes(app: Express) {
         return;
       }
 
+      await db.delete(incidentVolunteers).where(eq(incidentVolunteers.incidentId, incidentId));
       await db.delete(incidents).where(eq(incidents.id, incidentId));
       res.json({ success: true });
     } catch (err) {

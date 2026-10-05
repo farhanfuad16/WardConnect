@@ -13,6 +13,7 @@ import { registerResourceRoutes } from "../routes/resources";
 import { registerNoticeRoutes } from "../routes/notices";
 import { registerNotificationRoutes } from "../routes/notifications";
 import { registerVolunteerRoutes } from "../routes/volunteers";
+import { registerIncidentVolunteerRoutes } from "../routes/incidentVolunteers";
 import { registerUploadRoutes } from "../routes/uploads";
 import { registerAnalyticsRoutes } from "../routes/analytics";
 import { notFound, errorHandler } from "../middleware/errorHandler";
@@ -81,6 +82,7 @@ async function startServer() {
   registerNoticeRoutes(app);
   registerNotificationRoutes(app);
   registerVolunteerRoutes(app);
+  registerIncidentVolunteerRoutes(app);
   registerUploadRoutes(app);
   registerAnalyticsRoutes(app);
 

@@ -9,6 +9,7 @@ import {
   boolean,
   uniqueIndex,
   index,
+  primaryKey,
 } from "drizzle-orm/mysql-core";
 
 // ── Wards ───────────────────────────────────────────────────────────
@@ -183,7 +184,9 @@ export const notices = mysqlTable(
   "notices",
   {
     id: int("id").autoincrement().primaryKey(),
-    wardId: int("wardId").notNull(),
+    // Legacy: the posting admin's own ward. Targets are now allWards / noticeWards.
+    wardId: int("wardId"),
+    allWards: boolean("allWards").default(false).notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     body: text("body").notNull(),
     category: mysqlEnum("category", ["Emergency Alert", "Utility Notice", "General Notice"])
@@ -200,6 +203,33 @@ export const notices = mysqlTable(
 );
 
 export type Notice = typeof notices.$inferSelect;
+
+// Wards a notice is sent to when it isn't for all wards (migration 0005)
+export const noticeWards = mysqlTable(
+  "notice_wards",
+  {
+    noticeId: int("noticeId").notNull(),
+    wardId: int("wardId").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.noticeId, table.wardId] }), index("notice_wards_wardId_idx").on(table.wardId)],
+);
+
+// A resident's offer to help with one incident; the admin approves or declines it (migration 0005)
+export const incidentVolunteers = mysqlTable(
+  "incident_volunteers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    incidentId: int("incidentId").notNull(),
+    userId: int("userId").notNull(),
+    note: text("note"),
+    status: mysqlEnum("status", ["pending", "approved", "declined"]).default("pending").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("incident_volunteers_incident_user").on(table.incidentId, table.userId),
+    index("incident_volunteers_userId_idx").on(table.userId),
+  ],
+);
 export type InsertNotice = typeof notices.$inferInsert;
 
 // ── Notifications (per-user) ────────────────────────────────────────

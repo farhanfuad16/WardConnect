@@ -10,6 +10,8 @@ import { AppError } from "../middleware/errorHandler";
 // ── Validation ──────────────────────────────────────────────────────
 
 const createResourceSchema = z.object({
+  // The ward the resource is in, chosen by the admin (not the admin's own ward)
+  wardId: z.number().int().positive("Choose the ward the resource is in"),
   name: z.string().min(2, "Name must be at least 2 characters"),
   category: z.string().min(1, "Category is required"),
   contactInfo: z.string().min(1, "Contact info is required"),
@@ -20,6 +22,7 @@ const createResourceSchema = z.object({
 });
 
 const updateResourceSchema = z.object({
+  wardId: z.number().int().positive().optional(),
   name: z.string().min(2).optional(),
   category: z.string().min(1).optional(),
   contactInfo: z.string().min(1).optional(),
@@ -139,10 +142,12 @@ export function registerResourceRoutes(app: Express) {
       const db = await getDb();
       if (!db) throw new AppError(500, "Database not available");
 
-      const user = req.dbUser!;
-      const wardId = user.wardId ?? 1;
-
-      const { latitude, longitude, ...rest } = parsed.data;
+      const { latitude, longitude, wardId, ...rest } = parsed.data;
+      const ward = await db.select({ id: wards.id }).from(wards).where(eq(wards.id, wardId)).limit(1);
+      if (ward.length === 0) {
+        res.status(400).json({ error: "That ward doesn't exist" });
+        return;
+      }
       const result = await db.insert(resources).values({
         wardId,
         ...rest,
@@ -153,7 +158,7 @@ export function registerResourceRoutes(app: Express) {
       const resourceId = Number(result[0].insertId);
 
       res.status(201).json({
-        resource: { id: resourceId, wardId, ...parsed.data },
+        resource: { id: resourceId, ...parsed.data },
       });
     } catch (err) {
       if (err instanceof AppError) {
