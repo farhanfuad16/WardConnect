@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireAdmin } from "../middleware/admin";
 import { AppError } from "../middleware/errorHandler";
 import { notifyUser } from "../services/notify";
+import { defaultVolunteers } from "../fallbackData";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -34,7 +35,16 @@ export function registerVolunteerRoutes(app: Express) {
   app.get("/api/volunteers/count", requireAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const wardId = Number(req.query.wardId);
+        if (!wardId) {
+          res.status(400).json({ error: "wardId is required" });
+          return;
+        }
+        const count = defaultVolunteers.filter((volunteer) => volunteer.wardId === wardId && ["approved", "active"].includes(volunteer.status)).length;
+        res.json({ count });
+        return;
+      }
 
       const wardId = Number(req.query.wardId);
       if (!wardId) {
@@ -71,7 +81,21 @@ export function registerVolunteerRoutes(app: Express) {
   app.get("/api/volunteers", requireAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const user = req.dbUser!;
+        const { wardId, status, limit: limitStr, offset: offsetStr } = req.query;
+        const limit = Math.min(parseInt(limitStr as string) || 20, 100);
+        const offset = parseInt(offsetStr as string) || 0;
+        const items = defaultVolunteers.filter((volunteer) => {
+          if (!user.isAdmin && volunteer.userId !== user.id) return false;
+          if (user.isAdmin && wardId && volunteer.wardId !== Number(wardId)) return false;
+          if (status && volunteer.status !== String(status)) return false;
+          return true;
+        });
+        const page = items.slice(offset, offset + limit);
+        res.json({ volunteers: page, total: items.length, limit, offset });
+        return;
+      }
 
       const user = req.dbUser!;
       const { wardId, status, limit: limitStr, offset: offsetStr } = req.query;
@@ -134,7 +158,36 @@ export function registerVolunteerRoutes(app: Express) {
       }
 
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const user = req.dbUser!;
+        const { wardId: requestedWardId, ...volunteerData } = parsed.data;
+        const wardId = requestedWardId ?? user.wardId;
+        if (!wardId) {
+          res.status(400).json({ error: "You must be assigned to a ward to volunteer" });
+          return;
+        }
+        const existing = defaultVolunteers.some((entry) => entry.userId === user.id && entry.wardId === wardId);
+        if (existing) {
+          res.status(409).json({ error: "You have already signed up as a volunteer for this ward" });
+          return;
+        }
+        const volunteerId = defaultVolunteers.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+        const response = {
+          id: volunteerId,
+          userId: user.id,
+          wardId,
+          skillsOrInterest: volunteerData.skillsOrInterest ?? "",
+          status: "pending",
+        };
+        defaultVolunteers.push({
+          ...response,
+          createdAt: new Date().toISOString(),
+          userName: user.name || "Volunteer",
+          wardName: "Ward " + wardId,
+        });
+        res.status(201).json({ volunteer: response });
+        return;
+      }
 
       const user = req.dbUser!;
       const { wardId: requestedWardId, ...volunteerData } = parsed.data;

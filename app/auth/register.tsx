@@ -21,6 +21,13 @@ import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
 type Ward = { id: number; name: string; code: string };
 
+const fallbackWards: Ward[] = [
+  { id: 1, name: "Ward 12 · Mirpur", code: "W12" },
+  { id: 2, name: "Ward 7 · Dhanmondi", code: "W07" },
+  { id: 3, name: "Ward 3 · Gulshan", code: "W03" },
+  { id: 4, name: "Ward 9 · Uttara", code: "W09" },
+];
+
 export default function RegisterScreen() {
   const { C, s } = useAppStyles(makeStyles);
   const { register, isLoading: authLoading } = useAuthContext();
@@ -43,10 +50,12 @@ export default function RegisterScreen() {
         const base = getApiBaseUrl().replace(/\/$/, "");
         const res = await fetch(`${base}/api/wards`);
         const data = await res.json();
-        setWards(data.wards || []);
+        const loadedWards = Array.isArray(data?.wards) && data.wards.length > 0 ? data.wards : fallbackWards;
+        setWards(loadedWards);
+        setWardsError("");
       } catch {
+        setWards(fallbackWards);
         setWardsError("Couldn’t load wards. Check that the local API is running, then refresh this page.");
-        // The wards list stays empty; the picker shows wardsError instead.
       } finally {
         setWardsLoading(false);
       }

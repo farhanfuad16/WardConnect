@@ -1,4 +1,5 @@
 import { apiCall } from "./_core/api";
+import { Platform } from "react-native";
 
 export class ApiError extends Error {
   constructor(
@@ -332,28 +333,29 @@ export interface UploadResult {
 }
 
 export async function uploadImage(uri: string): Promise<UploadResult> {
-  // Create FormData for multipart upload
   const formData = new FormData();
-  
-  // Get the file extension from the URI
-  const uriParts = uri.split(".");
-  const fileType = uriParts[uriParts.length - 1];
-  const mimeType = `image/${fileType === "jpg" ? "jpeg" : fileType}`;
-  
-  // Append the image file
-  formData.append("image", {
-    uri,
-    name: `photo.${fileType}`,
-    type: mimeType,
-  } as any);
+
+  if (Platform.OS === "web") {
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error("Could not read the selected image.");
+    const image = await response.blob();
+    const extension = image.type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+    formData.append("image", image, `photo.${extension}`);
+  } else {
+    const uriParts = uri.split("?")[0].split(".");
+    const fileType = uriParts[uriParts.length - 1] || "jpg";
+    const mimeType = `image/${fileType === "jpg" ? "jpeg" : fileType}`;
+    formData.append("image", {
+      uri,
+      name: `photo.${fileType}`,
+      type: mimeType,
+    } as any);
+  }
 
   // Use apiCall directly for multipart upload (not apiRequest which uses JSON)
   const { apiCall } = await import("./_core/api");
   return apiCall<UploadResult>("/api/uploads/image", {
     method: "POST",
     body: formData,
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
   });
 }

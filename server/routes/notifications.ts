@@ -5,6 +5,7 @@ import { getDb } from "../db";
 import { notifications } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import { defaultNotifications } from "../fallbackData";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -21,7 +22,21 @@ export function registerNotificationRoutes(app: Express) {
   app.get("/api/notifications", requireAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const user = req.dbUser!;
+        const { unreadOnly, limit: limitStr, offset: offsetStr } = req.query;
+        const limit = Math.min(parseInt(limitStr as string) || 20, 100);
+        const offset = parseInt(offsetStr as string) || 0;
+        const items = defaultNotifications.filter((notification) => {
+          if (notification.userId !== user.id) return false;
+          if (unreadOnly === "true" && notification.isRead) return false;
+          return true;
+        });
+        const page = items.slice(offset, offset + limit);
+        const unreadCount = defaultNotifications.filter((notification) => notification.userId === user.id && !notification.isRead).length;
+        res.json({ notifications: page, total: items.length, unreadCount, limit, offset });
+        return;
+      }
 
       const user = req.dbUser!;
       const { unreadOnly, limit: limitStr, offset: offsetStr } = req.query;

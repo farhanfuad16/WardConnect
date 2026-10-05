@@ -3,7 +3,9 @@ import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View, StyleShe
 import { router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import WardMap, { type WardMapMarker } from "@/components/ward-map";
 import { useIncidents, useResources } from "@/hooks/useApi";
+import { useUserLocation } from "@/hooks/use-user-location";
 import { type Incident, type Resource } from "@/lib/api";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
@@ -40,9 +42,15 @@ function ResourceRow({ item }: { item: Resource }) {
   );
 }
 
-function Marker({ left, top, color, value }: { left: any; top: any; color: string; value: string }) {
-  const { s } = useAppStyles(makeStyles);
-  return <View style={[s.marker, { left, top, backgroundColor: color }]}><Text style={s.markerText}>{value}</Text></View>;
+function locationLabel(location: ReturnType<typeof useUserLocation>): string {
+  if (location.status === "requesting") return "Locating you…";
+  if (location.status === "denied") return location.error ?? "Location permission denied";
+  if (location.status === "unavailable") return location.error ?? "Location unavailable";
+  if (location.coords) {
+    const accuracy = location.accuracy ? ` · ±${Math.round(location.accuracy)}m` : "";
+    return `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}${accuracy}`;
+  }
+  return "Your location";
 }
 
 export default function MapScreen() {
@@ -52,9 +60,30 @@ export default function MapScreen() {
 
   const { data: incidentsData, isLoading: incidentsLoading, error: incidentsError, refetch: refetchIncidents } = useIncidents({ limit: 20 });
   const { data: resourcesData, isLoading: resourcesLoading, error: resourcesError, refetch: refetchResources } = useResources({ limit: 50 });
+  const location = useUserLocation();
 
   const incidents = incidentsData?.incidents || [];
   const resources = resourcesData?.resources || [];
+
+  const mapMarkers = useMemo<WardMapMarker[]>(
+    () =>
+      incidents.flatMap((incident) => {
+        const latitude = Number(incident.latitude);
+        const longitude = Number(incident.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
+        return [
+          {
+            id: incident.id,
+            latitude,
+            longitude,
+            color: incident.accent || C.coral,
+            title: incident.title,
+            description: `${incident.category} · ${incident.severity}`,
+          },
+        ];
+      }),
+    [incidents, C.coral]
+  );
 
   const filteredResources = useMemo(() => {
     if (!search) return resources;
@@ -120,19 +149,32 @@ export default function MapScreen() {
             </View>
             {mode === "incidents" ? (
               <>
-                <View style={s.map}>
-                  <View style={s.roadA} />
-                  <View style={s.roadB} />
-                  <Marker left="25%" top="35%" color={C.coral} value="1" />
-                  <Marker left="62%" top="52%" color={C.amber} value="2" />
-                  <Marker left="48%" top="23%" color={C.teal} value="3" />
-                  <View style={s.mapLabel}>
-                    <IconSymbol name="location.fill" size={13} color={C.teal} />
-                    <Text style={s.mapLabelText}>Ward · Your area</Text>
-                  </View>
-                </View>
+                <WardMap
+                  userLocation={location.coords}
+                  accuracyMeters={location.accuracy}
+                  markers={mapMarkers}
+                  loading={location.status === "requesting"}
+                  onMarkerPress={(id) => router.push(`/incident/${id}`)}
+                />
                 <View style={s.legend}>
-                  <Text style={s.legendTitle}>Verified incidents only</Text>
+                  <View style={s.locationRow}>
+                    <IconSymbol
+                      name="location.fill"
+                      size={14}
+                      color={location.status === "granted" ? C.teal : C.amber}
+                    />
+                    <Text style={s.locationText}>{locationLabel(location)}</Text>
+                    {location.status !== "granted" ? (
+                      <Pressable onPress={location.refresh} hitSlop={8}>
+                        <Text style={s.retry}>Retry</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <Text style={s.legendTitle}>
+                    {mapMarkers.length > 0
+                      ? `${mapMarkers.length} located incident${mapMarkers.length === 1 ? "" : "s"} · ${incidents.length - mapMarkers.length} without coordinates`
+                      : "Verified incidents only"}
+                  </Text>
                   <Text style={s.legendText}>Emergency · Utility · Road works</Text>
                 </View>
                 <Text style={s.section}>Nearby incidents</Text>
@@ -152,4 +194,4 @@ export default function MapScreen() {
   );
 }
 
-const makeStyles = (C: AppColors) => StyleSheet.create({ content: { paddingTop: 23, paddingBottom: 30 }, eyebrow: { color: C.muted, fontSize: 11, fontWeight: "600", letterSpacing: 1.2 }, title: { color: C.ink, fontSize: 30, fontWeight: "700", marginTop: 5 }, subtitle: { color: C.muted, fontSize: 14, marginTop: 6 }, switcher: { flexDirection: "row", backgroundColor: C.switcherBg, borderRadius: 12, padding: 3, marginTop: 18, marginBottom: 15 }, switchItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 }, switchActive: { backgroundColor: C.surface }, switchText: { color: C.muted, fontWeight: "600", fontSize: 13 }, switchTextActive: { color: C.ink }, map: { height: 210, borderRadius: 19, overflow: "hidden", backgroundColor: C.mapBg, position: "relative", borderWidth: 1, borderColor: C.border }, roadA: { position: "absolute", width: 360, height: 16, backgroundColor: C.road, transform: [{ rotate: "27deg" }], top: 77, left: -30 }, roadB: { position: "absolute", width: 310, height: 12, backgroundColor: C.road, transform: [{ rotate: "-37deg" }], top: 105, left: 40 }, marker: { position: "absolute", width: 29, height: 29, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: C.surface }, markerText: { color: C.onColor, fontWeight: "600", fontSize: 12 }, mapLabel: { position: "absolute", bottom: 12, left: 12, backgroundColor: C.surface, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row", gap: 5, alignItems: "center", ...C.shadow }, mapLabelText: { color: C.ink, fontSize: 11, fontWeight: "700" }, legend: { backgroundColor: C.surface, borderRadius: 14, padding: 12, marginTop: 10, marginBottom: 13, ...C.card }, legendTitle: { color: C.ink, fontSize: 12, fontWeight: "700" }, legendText: { color: C.muted, fontSize: 11, marginTop: 3 }, section: { color: C.ink, fontSize: 17, fontWeight: "700", marginBottom: 10 }, searchBox: { backgroundColor: C.surface, borderRadius: 13, padding: 12, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: C.border, marginBottom: 13 }, input: { flex: 1, color: C.ink, fontSize: 14 }, row: { backgroundColor: C.surface, borderRadius: 15, padding: 14, marginBottom: 9, flexDirection: "row", alignItems: "center", gap: 11, ...C.card }, dot: { width: 10, height: 10, borderRadius: 5 }, cat: { color: C.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 }, rowTitle: { color: C.ink, fontSize: 14, fontWeight: "700", marginTop: 3 }, meta: { color: C.muted, fontSize: 12, marginTop: 2 }, contact: { color: C.teal, fontSize: 12, fontWeight: "600", marginTop: 2 }, resourceIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" } });
+const makeStyles = (C: AppColors) => StyleSheet.create({ content: { paddingTop: 23, paddingBottom: 30 }, eyebrow: { color: C.muted, fontSize: 11, fontWeight: "600", letterSpacing: 1.2 }, title: { color: C.ink, fontSize: 30, fontWeight: "700", marginTop: 5 }, subtitle: { color: C.muted, fontSize: 14, marginTop: 6 }, switcher: { flexDirection: "row", backgroundColor: C.switcherBg, borderRadius: 12, padding: 3, marginTop: 18, marginBottom: 15 }, switchItem: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 }, switchActive: { backgroundColor: C.surface }, switchText: { color: C.muted, fontWeight: "600", fontSize: 13 }, switchTextActive: { color: C.ink }, locationRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }, locationText: { color: C.ink, fontSize: 11, fontWeight: "600", flexShrink: 1 }, retry: { color: C.teal, fontSize: 11, fontWeight: "700" }, legend: { backgroundColor: C.surface, borderRadius: 14, padding: 12, marginTop: 10, marginBottom: 13, ...C.card }, legendTitle: { color: C.ink, fontSize: 12, fontWeight: "700" }, legendText: { color: C.muted, fontSize: 11, marginTop: 3, flexShrink: 1 }, section: { color: C.ink, fontSize: 17, fontWeight: "700", marginBottom: 10 }, searchBox: { backgroundColor: C.surface, borderRadius: 13, padding: 12, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: C.border, marginBottom: 13 }, input: { flex: 1, color: C.ink, fontSize: 14 }, row: { backgroundColor: C.surface, borderRadius: 15, padding: 14, marginBottom: 9, flexDirection: "row", alignItems: "center", gap: 11, ...C.card }, dot: { width: 10, height: 10, borderRadius: 5 }, cat: { color: C.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 }, rowTitle: { color: C.ink, fontSize: 14, fontWeight: "700", marginTop: 3 }, meta: { color: C.muted, fontSize: 12, marginTop: 2 }, contact: { color: C.teal, fontSize: 12, fontWeight: "600", marginTop: 2 }, resourceIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: C.tealTint, alignItems: "center", justifyContent: "center" } });

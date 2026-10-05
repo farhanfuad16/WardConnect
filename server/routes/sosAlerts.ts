@@ -5,6 +5,7 @@ import { getDb } from "../db";
 import { sosAlerts, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import { defaultSosAlerts } from "../fallbackData";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -26,7 +27,19 @@ export function registerSosAlertRoutes(app: Express) {
   app.get("/api/sos", async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const { wardId, status, limit: limitStr, offset: offsetStr } = req.query;
+        const limit = Math.min(parseInt(limitStr as string) || 20, 100);
+        const offset = parseInt(offsetStr as string) || 0;
+        const items = defaultSosAlerts.filter((alert) => {
+          if (wardId && alert.wardId !== Number(wardId)) return false;
+          if (status && alert.status !== String(status)) return false;
+          return true;
+        });
+        const page = items.slice(offset, offset + limit);
+        res.json({ alerts: page, total: items.length, limit, offset });
+        return;
+      }
 
       const { wardId, status, limit: limitStr, offset: offsetStr } = req.query;
       const limit = Math.min(parseInt(limitStr as string) || 20, 100);

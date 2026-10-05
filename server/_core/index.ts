@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "node:path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -18,6 +19,7 @@ import { registerAnalyticsRoutes } from "../routes/analytics";
 import { notFound, errorHandler } from "../middleware/errorHandler";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { loadLocalFallbackData } from "../fallbackData";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -39,6 +41,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  if (process.env.NODE_ENV === "development") {
+    await loadLocalFallbackData();
+  }
+
   const app = express();
   const server = createServer(app);
 
@@ -65,6 +71,7 @@ async function startServer() {
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
   registerStorageProxy(app);
   // Real email/password auth (auth.ts) must be registered before the legacy

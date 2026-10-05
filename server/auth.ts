@@ -5,6 +5,14 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { users, wards } from "../drizzle/schema";
 import { signAuthToken, verifyAuthToken, type AuthJWTPayload } from "./_core/jwt";
+import {
+  defaultWards,
+  getLocalUserByEmail,
+  getLocalUserById,
+  getWardName,
+  saveLocalFallbackData,
+  localUsers,
+} from "./fallbackData";
 
 // ── Validation schemas ──────────────────────────────────────────────
 
@@ -70,8 +78,46 @@ export function registerAuthRoutes(app: Express) {
 
       const { name, email, password, phone, wardId } = parsed.data;
       const db = await getDb();
+
       if (!db) {
-        res.status(500).json({ error: "Database not available" });
+        const existing = getLocalUserByEmail(email);
+        if (existing) {
+          res.status(409).json({ error: "An account with this email already exists" });
+          return;
+        }
+
+        const selectedWard = getWardName(wardId);
+        if (!selectedWard) {
+          res.status(400).json({ error: "Selected ward is invalid" });
+          return;
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+        const userId = localUsers.reduce((max, user) => Math.max(max, user.id), 0) + 1;
+        const now = new Date();
+        const newUser: (typeof localUsers)[number] = {
+          id: userId,
+          name,
+          email,
+          phone: phone || null,
+          passwordHash,
+          wardId,
+          role: "user" as const,
+          isAdmin: false,
+          loginMethod: "email" as const,
+          createdAt: now,
+          updatedAt: now,
+          lastSignedIn: now,
+        };
+
+        localUsers.push(newUser);
+        await saveLocalFallbackData();
+
+        const token = await signAuthToken({ userId, email, name });
+        res.status(201).json({
+          token,
+          user: { id: userId, name, email, phone: phone || null, wardId, wardName: selectedWard, isAdmin: false },
+        });
         return;
       }
 
@@ -140,8 +186,41 @@ export function registerAuthRoutes(app: Express) {
 
       const { email, password } = parsed.data;
       const db = await getDb();
+
       if (!db) {
-        res.status(500).json({ error: "Database not available" });
+        const localUser = getLocalUserByEmail(email);
+        if (!localUser) {
+          res.status(401).json({ error: "Invalid email or password" });
+          return;
+        }
+
+        if (!localUser.passwordHash) {
+          res.status(401).json({
+            error: "This account uses social login. Please sign in with your provider.",
+          });
+          return;
+        }
+
+        const valid = await bcrypt.compare(password, localUser.passwordHash);
+        if (!valid) {
+          res.status(401).json({ error: "Invalid email or password" });
+          return;
+        }
+
+        localUser.lastSignedIn = new Date();
+        const token = await signAuthToken({ userId: localUser.id, email: localUser.email, name: localUser.name });
+        res.json({
+          token,
+          user: {
+            id: localUser.id,
+            name: localUser.name,
+            email: localUser.email,
+            phone: localUser.phone,
+            wardId: localUser.wardId,
+            wardName: getWardName(localUser.wardId),
+            isAdmin: localUser.isAdmin,
+          },
+        });
         return;
       }
 
@@ -220,8 +299,27 @@ export function registerAuthRoutes(app: Express) {
     try {
       const authPayload = (req as any).authUser as AuthJWTPayload;
       const db = await getDb();
+
       if (!db) {
-        res.status(500).json({ error: "Database not available" });
+        const localUser = getLocalUserById(authPayload.userId);
+        if (!localUser) {
+          res.status(404).json({ error: "User not found" });
+          return;
+        }
+
+        res.json({
+          user: {
+            id: localUser.id,
+            name: localUser.name,
+            email: localUser.email,
+            phone: localUser.phone,
+            wardId: localUser.wardId,
+            wardName: getWardName(localUser.wardId),
+            role: localUser.role,
+            isAdmin: localUser.isAdmin,
+            createdAt: localUser.createdAt,
+          },
+        });
         return;
       }
 
@@ -282,15 +380,15 @@ export function registerAuthRoutes(app: Express) {
     try {
       const db = await getDb();
       if (!db) {
-        res.status(500).json({ error: "Database not available" });
+        res.json({ wards: defaultWards });
         return;
       }
 
       const allWards = await db.select().from(wards);
-      res.json({ wards: allWards });
+      res.json({ wards: allWards.length > 0 ? allWards : defaultWards });
     } catch (error) {
       console.error("[Auth] /wards failed:", error);
-      res.status(500).json({ error: "Failed to fetch wards" });
+      res.status(500).json({ error: "Failed to fetch wards", wards: defaultWards });
     }
   });
 

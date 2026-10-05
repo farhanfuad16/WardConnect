@@ -6,6 +6,7 @@ import { resources, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { requireAdmin } from "../middleware/admin";
 import { AppError } from "../middleware/errorHandler";
+import { defaultResources } from "../fallbackData";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -32,7 +33,19 @@ export function registerResourceRoutes(app: Express) {
   app.get("/api/resources", async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const { wardId, category, limit: limitStr, offset: offsetStr } = req.query;
+        const limit = Math.min(parseInt(limitStr as string) || 20, 100);
+        const offset = parseInt(offsetStr as string) || 0;
+        const items = defaultResources.filter((resource) => {
+          if (wardId && resource.wardId !== Number(wardId)) return false;
+          if (category && resource.category !== String(category)) return false;
+          return true;
+        });
+        const page = items.slice(offset, offset + limit);
+        res.json({ resources: page, total: items.length, limit, offset });
+        return;
+      }
 
       const { wardId, category, search, limit: limitStr, offset: offsetStr } = req.query;
       const limit = Math.min(parseInt(limitStr as string) || 20, 100);

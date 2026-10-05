@@ -6,6 +6,7 @@ import { issues, users, wards } from "../../drizzle/schema";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { notifyUser } from "../services/notify";
+import { defaultIssues, defaultWards, saveLocalFallbackData } from "../fallbackData";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -39,7 +40,19 @@ export function registerIssueRoutes(app: Express) {
   app.get("/api/issues", async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const { wardId, status, limit: limitStr, offset: offsetStr } = req.query;
+        const limit = Math.min(parseInt(limitStr as string) || 20, 100);
+        const offset = parseInt(offsetStr as string) || 0;
+        const items = defaultIssues.filter((issue) => {
+          if (wardId && issue.wardId !== Number(wardId)) return false;
+          if (status && issue.status !== String(status)) return false;
+          return true;
+        });
+        const page = items.slice(offset, offset + limit);
+        res.json({ issues: page, total: items.length, limit, offset });
+        return;
+      }
 
       const { wardId, status, limit: limitStr, offset: offsetStr } = req.query;
       const limit = Math.min(parseInt(limitStr as string) || 20, 100);
@@ -98,7 +111,15 @@ export function registerIssueRoutes(app: Express) {
   app.get("/api/issues/:id", async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
+      if (!db) {
+        const issue = defaultIssues.find((item) => item.id === Number(req.params.id));
+        if (!issue) {
+          res.status(404).json({ error: "Issue not found" });
+          return;
+        }
+        res.json({ issue });
+        return;
+      }
 
       const rows = await db
         .select({
@@ -152,12 +173,32 @@ export function registerIssueRoutes(app: Express) {
       }
 
       const db = await getDb();
-      if (!db) throw new AppError(500, "Database not available");
-
       const user = req.dbUser!;
       const wardId = user.wardId;
       if (!wardId) {
         res.status(400).json({ error: "You must be assigned to a ward to create issues" });
+        return;
+      }
+
+      if (!db) {
+        const now = new Date().toISOString();
+        const issue = {
+          id: defaultIssues.reduce((max, item) => Math.max(max, item.id), 0) + 1,
+          userId: user.id,
+          wardId,
+          ...parsed.data,
+          status: "submitted",
+          severity: parsed.data.severity ?? "normal",
+          latitude: parsed.data.latitude != null ? String(parsed.data.latitude) : undefined,
+          longitude: parsed.data.longitude != null ? String(parsed.data.longitude) : undefined,
+          createdAt: now,
+          updatedAt: now,
+          userName: user.name ?? "Community member",
+          wardName: defaultWards.find((ward) => ward.id === wardId)?.name ?? `Ward ${wardId}`,
+        };
+        defaultIssues.push(issue);
+        await saveLocalFallbackData();
+        res.status(201).json({ issue });
         return;
       }
 

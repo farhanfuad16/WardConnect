@@ -51,7 +51,9 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
     "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        NSLocationWhenInUseUsageDescription:
+          "WardConnect uses your location to show where you are on the incident map and to attach it to reports and SOS alerts.",
       }
   },
   android: {
@@ -64,7 +66,7 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS"],
+    permissions: ["POST_NOTIFICATIONS", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
     intentFilters: [
       {
         action: "VIEW",
@@ -86,6 +88,13 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "Allow WardConnect to use your location to show where you are on the incident map.",
+      },
+    ],
     [
       "expo-audio",
       {

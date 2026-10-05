@@ -1,8 +1,20 @@
 import type { Express, Request, Response } from "express";
 import multer from "multer";
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { extname, join, resolve } from "node:path";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { uploadImage, isCloudinaryConfigured } from "../services/cloudinary";
+
+const localUploadDirectory = resolve(process.cwd(), "uploads");
+const imageExtensions: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+};
 
 // Configure multer for memory storage (no disk writes)
 const storage = multer.memoryStorage();
@@ -27,17 +39,8 @@ const upload = multer({
 });
 
 export function registerUploadRoutes(app: Express) {
-  // POST /api/uploads/image — upload an image to Cloudinary
+  // POST /api/uploads/image — upload to Cloudinary or local development storage
   app.post("/api/uploads/image", requireAuth, (req: Request, res: Response) => {
-    // Check if Cloudinary is configured
-    if (!isCloudinaryConfigured()) {
-      res.status(503).json({
-        error: "Image upload service is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.",
-      });
-      return;
-    }
-
-    // Use multer middleware to handle single file upload
     upload.single("image")(req, res, async (err) => {
       if (err instanceof multer.MulterError) {
         // A Multer error occurred
@@ -60,6 +63,33 @@ export function registerUploadRoutes(app: Express) {
         return;
       }
 
+      if (!isCloudinaryConfigured()) {
+        if (process.env.NODE_ENV !== "development") {
+          res.status(503).json({
+            error: "Image upload service is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.",
+          });
+          return;
+        }
+
+        try {
+          await mkdir(localUploadDirectory, { recursive: true });
+          const extension = imageExtensions[req.file.mimetype] || extname(req.file.originalname) || ".jpg";
+          const filename = `${randomUUID()}${extension}`;
+          await writeFile(join(localUploadDirectory, filename), req.file.buffer);
+          const url = `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+          res.status(201).json({
+            url,
+            public_id: filename,
+            format: extension.slice(1),
+            bytes: req.file.size,
+          });
+        } catch (error) {
+          console.error("[Upload] Local image save failed:", error);
+          res.status(500).json({ error: "Failed to save image locally." });
+        }
+        return;
+      }
+
       try {
         // Generate a unique filename with user ID and timestamp
         const userId = req.dbUser?.id || "unknown";
@@ -75,15 +105,12 @@ export function registerUploadRoutes(app: Express) {
 
         // Return the uploaded image URL
         res.status(201).json({
-          success: true,
-          data: {
-            url: result.secure_url,
-            public_id: result.public_id,
-            format: result.format,
-            width: result.width,
-            height: result.height,
-            bytes: result.bytes,
-          },
+          url: result.secure_url,
+          public_id: result.public_id,
+          format: result.format,
+          width: result.width,
+          height: result.height,
+          bytes: result.bytes,
         });
       } catch (error) {
         console.error("[Upload] Cloudinary upload failed:", error);

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { verifyAuthToken, type AuthJWTPayload } from "../_core/jwt";
 import { getDb } from "../db";
 import { users } from "../../drizzle/schema";
+import { getLocalUserById } from "../fallbackData";
 
 export interface AuthenticatedUser {
   id: number;
@@ -56,10 +57,24 @@ export async function requireAuth(
 
   req.authUser = payload;
 
-  // Fetch full user record from DB
   const db = await getDb();
   if (!db) {
-    res.status(500).json({ error: "Database not available" });
+    const localUser = getLocalUserById(payload.userId);
+    if (!localUser) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    req.dbUser = {
+      id: localUser.id,
+      name: localUser.name,
+      email: localUser.email,
+      phone: localUser.phone,
+      wardId: localUser.wardId,
+      role: localUser.role,
+      isAdmin: localUser.isAdmin,
+    };
+    next();
     return;
   }
 
