@@ -27,6 +27,20 @@ export function isAuthenticated(): boolean {
   return !!getToken();
 }
 
+// Local uploads are stored as "/uploads/<file>" (or as an absolute URL built
+// from whichever host uploaded them), so rebuild them against the API origin:
+// in dev the admin runs on Vite's port while the API runs on 3000.
+export function resolvePhotoUrl(photoUrl?: string | null): string | undefined {
+  if (!photoUrl) return undefined;
+  if (typeof window === "undefined") return photoUrl;
+  const { protocol, hostname, port, origin } = window.location;
+  const apiOrigin = port === "5173" ? `${protocol}//${hostname}:3000` : origin;
+  if (photoUrl.startsWith("/")) return `${apiOrigin}${photoUrl}`;
+  const localUpload = photoUrl.match(/^https?:\/\/[^/?#]+(\/uploads\/[^?#]+)/i);
+  if (localUpload) return `${apiOrigin}${localUpload[1]}`;
+  return photoUrl;
+}
+
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {

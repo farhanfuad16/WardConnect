@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getIssues, updateIssueStatus } from '../lib/api';
+import { getIssues, updateIssueStatus, resolvePhotoUrl } from '../lib/api';
 import { timeAgoWithDate } from '../lib/time';
 
 interface Issue {
@@ -185,9 +185,9 @@ export default function Issues() {
                         📍 {issue.landmark}
                       </div>
                     )}
-                    {issue.photoUrl && (
+                    {resolvePhotoUrl(issue.photoUrl) && (
                       <a
-                        href={issue.photoUrl}
+                        href={resolvePhotoUrl(issue.photoUrl)}
                         target="_blank"
                         rel="noreferrer"
                         style={{ fontSize: '12px', color: 'var(--link)', fontWeight: '600' }}

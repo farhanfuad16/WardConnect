@@ -50,3 +50,20 @@ export function getApiBaseUrl(): string {
 
   return "http://localhost:3000";
 }
+
+/**
+ * Turn a stored photo value into a URL the current device can actually load.
+ *
+ * Local uploads are stored as "/uploads/<file>" and older rows may hold an
+ * absolute URL built from whichever host uploaded them (localhost, a LAN
+ * address, ...), so both are re-anchored to this device's API base. Remote
+ * URLs such as Cloudinary are returned untouched.
+ */
+export function resolvePhotoUrl(photoUrl?: string | null): string | undefined {
+  if (!photoUrl) return undefined;
+  const base = getApiBaseUrl();
+  if (photoUrl.startsWith("/")) return `${base}${photoUrl}`;
+  const localUpload = photoUrl.match(/^https?:\/\/[^/?#]+(\/uploads\/[^?#]+)/i);
+  if (localUpload) return `${base}${localUpload[1]}`;
+  return photoUrl;
+}

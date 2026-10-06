@@ -10,13 +10,25 @@ import { defaultIssues, defaultWards, saveLocalFallbackData } from "../fallbackD
 
 // ── Validation ──────────────────────────────────────────────────────
 
+// Photos are either a full http(s) URL (Cloudinary) or a host-independent
+// local upload path such as "/uploads/<file>.jpg".
+const photoUrlSchema = z.union([
+  z
+    .string()
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), {
+      message: "Photo must be an http(s) URL",
+    }),
+  z.string().regex(/^\/uploads\/[A-Za-z0-9._-]+$/, "Photo path is invalid"),
+]);
+
 const createIssueSchema = z.object({
   category: z.string().min(1, "Category is required"),
   title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   severity: z.enum(["normal", "emergency"]).default("normal"),
   landmark: z.string().optional(),
-  photoUrl: z.string().url().optional(),
+  photoUrl: photoUrlSchema.optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
@@ -28,7 +40,7 @@ const updateIssueSchema = z.object({
   description: z.string().min(10).optional(),
   severity: z.enum(["normal", "emergency"]).optional(),
   landmark: z.string().optional(),
-  photoUrl: z.string().url().optional(),
+  photoUrl: photoUrlSchema.optional(),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
