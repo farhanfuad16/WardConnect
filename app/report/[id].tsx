@@ -4,7 +4,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { BackButton } from "@/components/back-button";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useIssue } from "@/hooks/useApi";
-import { statusLabel } from "@/lib/api";
+import { resolvePhotoUrl, statusLabel } from "@/lib/api";
 import { timeAgoWithDate } from "@/lib/time";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
@@ -87,6 +87,7 @@ export default function ReportDetail() {
   });
   const pillColor = item.status === "in_progress" ? C.amberTint : C.greenTint;
   const pillTextColor = item.status === "in_progress" ? C.amber : C.green;
+  const photoUri = resolvePhotoUrl(item.photoUrl);
 
   return (
     <ScreenContainer>
@@ -98,11 +99,11 @@ export default function ReportDetail() {
           <Text style={[s.pillText, { color: pillTextColor }]}>{statusLabel[item.status]}</Text>
         </View>
         
-        {item.photoUrl ? (
+        {photoUri ? (
           <>
             <Text style={s.section}>Photo</Text>
             <View style={s.imageContainer}>
-              <Image source={{ uri: item.photoUrl }} style={s.image} resizeMode="cover" />
+              <Image source={{ uri: photoUri }} style={s.image} resizeMode="cover" />
             </View>
           </>
         ) : null}

@@ -19,6 +19,7 @@ export default function NewReport() {
   const [description, setDescription] = useState("");
   const [landmark, setLandmark] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageMime, setImageMime] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const createIssue = useCreateIssue();
@@ -69,6 +70,7 @@ export default function NewReport() {
 
       if (!result.canceled && result.assets[0]) {
         setImageUri(result.assets[0].uri);
+        setImageMime(result.assets[0].mimeType ?? undefined);
       }
     } catch (error) {
       showAlert("Error", "Failed to pick image. Please try again.");
@@ -93,7 +95,7 @@ export default function NewReport() {
       "Are you sure you want to remove this photo?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => setImageUri(null) },
+        { text: "Remove", style: "destructive", onPress: () => { setImageUri(null); setImageMime(undefined); } },
       ],
     );
   };
@@ -113,7 +115,7 @@ export default function NewReport() {
       try {
         setUploading(true);
         setUploadProgress("Uploading photo...");
-        const uploadResult = await uploadImage(imageUri);
+        const uploadResult = await uploadImage(imageUri, imageMime);
         photoUrl = uploadResult.url;
       } catch (err: any) {
         setUploading(false);
@@ -121,6 +123,10 @@ export default function NewReport() {
           "Photo Upload Failed",
           err?.message || "Failed to upload photo. Would you like to submit without a photo?",
           [
+            {
+              text: "Try Again",
+              onPress: () => submit(),
+            },
             { text: "Cancel", style: "cancel" },
             {
               text: "Submit Without Photo",

@@ -1,6 +1,8 @@
 import { apiCall } from "./_core/api";
 import { Platform } from "react-native";
 
+export { resolvePhotoUrl } from "./api-url";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -332,22 +334,39 @@ export interface UploadResult {
   bytes: number;
 }
 
-export async function uploadImage(uri: string): Promise<UploadResult> {
+// Mime types the upload endpoint accepts. Anything else (HEIC from a camera,
+// an unknown picker value, a URI with no extension) is normalised so the
+// request is not rejected before the photo ever reaches the server.
+const uploadableMimeTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"];
+
+function normalizeUploadMime(picked?: string, uri?: string): string {
+  const declared = (picked || "").toLowerCase();
+  if (uploadableMimeTypes.includes(declared)) return declared;
+  const extension = (uri?.split("?")[0].split(".").pop() || "").toLowerCase();
+  const fromExtension = `image/${extension === "jpg" ? "jpeg" : extension}`;
+  if (uploadableMimeTypes.includes(fromExtension)) return fromExtension;
+  return "image/jpeg";
+}
+
+function mimeToExtension(mimeType: string): string {
+  return mimeType.split("/")[1].replace("jpeg", "jpg");
+}
+
+export async function uploadImage(uri: string, pickedMimeType?: string): Promise<UploadResult> {
   const formData = new FormData();
 
   if (Platform.OS === "web") {
     const response = await fetch(uri);
     if (!response.ok) throw new Error("Could not read the selected image.");
     const image = await response.blob();
-    const extension = image.type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
-    formData.append("image", image, `photo.${extension}`);
+    const mimeType = normalizeUploadMime(pickedMimeType || image.type, uri);
+    const payload = mimeType === image.type ? image : new Blob([image], { type: mimeType });
+    formData.append("image", payload, `photo.${mimeToExtension(mimeType)}`);
   } else {
-    const uriParts = uri.split("?")[0].split(".");
-    const fileType = uriParts[uriParts.length - 1] || "jpg";
-    const mimeType = `image/${fileType === "jpg" ? "jpeg" : fileType}`;
+    const mimeType = normalizeUploadMime(pickedMimeType, uri);
     formData.append("image", {
       uri,
-      name: `photo.${fileType}`,
+      name: `photo.${mimeToExtension(mimeType)}`,
       type: mimeType,
     } as any);
   }

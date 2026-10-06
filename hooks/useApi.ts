@@ -24,6 +24,7 @@ export function useCreateIssue() {
     mutationFn: api.createIssue,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["issues"] });
+      queryClient.invalidateQueries({ queryKey: ["issue"] });
     },
   });
 }

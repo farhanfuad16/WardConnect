@@ -14,6 +14,8 @@ const imageExtensions: Record<string, string> = {
   "image/png": ".png",
   "image/gif": ".gif",
   "image/webp": ".webp",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
 };
 
 // Configure multer for memory storage (no disk writes)
@@ -21,7 +23,7 @@ const storage = multer.memoryStorage();
 
 // File filter to only allow image types
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+  const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"];
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
@@ -76,7 +78,10 @@ export function registerUploadRoutes(app: Express) {
           const extension = imageExtensions[req.file.mimetype] || extname(req.file.originalname) || ".jpg";
           const filename = `${randomUUID()}${extension}`;
           await writeFile(join(localUploadDirectory, filename), req.file.buffer);
-          const url = `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+          // Store a host-independent path: the app rebuilds the full URL from
+          // its own API base, so a photo stays reachable when the report is
+          // opened from another device (phone vs laptop vs LAN address).
+          const url = `/uploads/${filename}`;
           res.status(201).json({
             url,
             public_id: filename,
