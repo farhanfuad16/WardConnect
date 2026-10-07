@@ -244,7 +244,9 @@ export const LEAFLET_HTML = `<!DOCTYPE html>
       if (m.subtitle) html += '<span>' + esc(m.subtitle) + '</span>';
       if (m.action) html += '<br><a class="wc-link" data-k="' + esc(m.kind) + '" data-i="' + esc(m.id) + '">' + esc(m.action) + ' &rsaquo;</a>';
       html += '</div>';
-      L.marker([m.latitude, m.longitude], { icon: icon }).bindPopup(html).addTo(group);
+      var marker = L.marker([m.latitude, m.longitude], { icon: icon }).bindPopup(html);
+      if (m.kind === 'resource') marker.bindTooltip('<div class="wc-pop"><b>' + esc(m.title) + '</b>' + (m.subtitle ? '<span>' + esc(m.subtitle) + '</span>' : '') + '</div>', { direction: 'top', opacity: 0.98 });
+      marker.addTo(group);
       pts.push([m.latitude, m.longitude]);
     });
 

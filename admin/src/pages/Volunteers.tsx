@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getVolunteers, updateVolunteer, deleteVolunteer } from '../lib/api';
+import { getVolunteers, updateVolunteer, deleteVolunteer, getIncidentVolunteers, updateIncidentVolunteer, deleteIncidentVolunteer } from '../lib/api';
 import { timeAgoWithDate } from '../lib/time';
 
 interface Volunteer {
@@ -14,6 +14,16 @@ interface Volunteer {
   wardName: string;
 }
 
+interface IncidentVolunteer {
+  id: number;
+  incidentTitle: string;
+  userName: string;
+  homeWardName: string;
+  note: string | null;
+  status: 'pending' | 'approved' | 'declined';
+  createdAt: string;
+}
+
 const statusColors: Record<string, string> = {
   pending: '#F59E0B',
   approved: '#10B981',
@@ -23,6 +33,7 @@ const statusColors: Record<string, string> = {
 
 export default function Volunteers() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [incidentVolunteers, setIncidentVolunteers] = useState<IncidentVolunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState({ status: '' });
@@ -40,6 +51,8 @@ export default function Volunteers() {
       if (filter.status) params.status = filter.status;
       const data = await getVolunteers(params) as { volunteers: Volunteer[] };
       setVolunteers(data.volunteers || []);
+      const incidentData = await getIncidentVolunteers() as { volunteers: IncidentVolunteer[] };
+      setIncidentVolunteers(incidentData.volunteers || []);
     } catch (err: any) {
       if (!silent) setError(err.message || 'Failed to load volunteers');
     } finally {
@@ -56,6 +69,15 @@ export default function Volunteers() {
     }
   };
 
+  const handleIncidentStatusChange = async (id: number, status: 'approved' | 'declined') => {
+    try {
+      await updateIncidentVolunteer(id, status);
+      await loadVolunteers(true);
+    } catch (err: any) {
+      alert(`Failed to update incident volunteer: ${err.message}`);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to remove this volunteer?')) return;
     try {
@@ -63,6 +85,16 @@ export default function Volunteers() {
       loadVolunteers();
     } catch (err: any) {
       alert(`Failed to remove: ${err.message}`);
+    }
+  };
+
+  const handleIncidentDelete = async (id: number) => {
+    if (!confirm('Remove this incident volunteer offer?')) return;
+    try {
+      await deleteIncidentVolunteer(id);
+      await loadVolunteers(true);
+    } catch (err: any) {
+      alert(`Failed to remove offer: ${err.message}`);
     }
   };
 
@@ -93,8 +125,6 @@ export default function Volunteers() {
               <option value="">All Status</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
             </select>
           </div>
         </div>
@@ -132,7 +162,54 @@ export default function Volunteers() {
           </div>
         )}
 
-        {!loading && volunteers.length === 0 && (
+        {incidentVolunteers.length > 0 && (
+          <section style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {incidentVolunteers.map((volunteer) => (
+                <div key={`incident-${volunteer.id}`} style={{ background: 'var(--surface)', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: '12px', flex: '1 1 220px', minWidth: 0 }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        flexShrink: 0,
+                        borderRadius: '50%',
+                        background: 'var(--success-bg)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '600',
+                        color: '#10B981',
+                        fontSize: '14px'
+                      }}>
+                        {volunteer.userName?.charAt(0) || '?'}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <div style={{ fontWeight: '600', color: 'var(--ink)', fontSize: '16px' }}>{volunteer.userName}</div>
+                          <span style={{ padding: '2px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '600', textTransform: 'capitalize', background: `${statusColors[volunteer.status] || '#94A3B8'}20`, color: statusColors[volunteer.status] || '#94A3B8' }}>{volunteer.status === 'approved' ? 'Activated' : volunteer.status}</span>
+                        </div>
+                        <div style={{ fontSize: '14px', color: 'var(--text-2)', marginTop: '4px' }}>{volunteer.incidentTitle}</div>
+                        {volunteer.note && <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '8px 0 0' }}>{volunteer.note}</p>}
+                        <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '8px' }}>{volunteer.homeWardName} • Offered {timeAgoWithDate(volunteer.createdAt)}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {volunteer.status === 'pending' && <>
+                        <button onClick={() => handleIncidentStatusChange(volunteer.id, 'approved')} style={{ padding: '8px 12px', background: '#10B981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}>Approve</button>
+                        <button onClick={() => handleIncidentStatusChange(volunteer.id, 'declined')} style={{ padding: '8px 12px', background: 'var(--danger-bg-2)', color: 'var(--danger-text)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}>Reject</button>
+                      </>}
+                      {volunteer.status === 'approved' && <span style={{ padding: '8px 12px', background: 'var(--success-bg)', color: '#10B981', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>Activated</span>}
+                      <button onClick={() => handleIncidentDelete(volunteer.id)} style={{ padding: '8px 12px', background: 'var(--danger-bg-2)', color: 'var(--danger-text)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}>Remove</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!loading && volunteers.length === 0 && incidentVolunteers.length === 0 && (
           <div style={{
             textAlign: 'center',
             padding: '60px',
@@ -145,7 +222,8 @@ export default function Volunteers() {
         )}
 
         {volunteers.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <section>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {volunteers.map((volunteer) => (
               <div
                 key={volunteer.id}
@@ -186,7 +264,7 @@ export default function Volunteers() {
                           background: `${statusColors[volunteer.status] || '#94A3B8'}20`,
                           color: statusColors[volunteer.status] || '#94A3B8'
                         }}>
-                          {volunteer.status}
+                          {volunteer.status === 'approved' || volunteer.status === 'active' ? 'Activated' : volunteer.status}
                         </span>
                       </div>
                       {volunteer.skillsOrInterest && (
@@ -234,39 +312,10 @@ export default function Volunteers() {
                         </button>
                       </>
                     )}
-                    {volunteer.status === 'approved' && (
-                      <button
-                        onClick={() => handleStatusChange(volunteer.id, 'active')}
-                        style={{
-                          padding: '8px 12px',
-                          background: '#3B82F6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Activate
-                      </button>
-                    )}
-                    {volunteer.status === 'active' && (
-                      <button
-                        onClick={() => handleStatusChange(volunteer.id, 'inactive')}
-                        style={{
-                          padding: '8px 12px',
-                          background: 'var(--btn-bg)',
-                          color: 'var(--text-2)',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Deactivate
-                      </button>
+                    {(volunteer.status === 'approved' || volunteer.status === 'active') && (
+                      <span style={{ padding: '8px 12px', background: 'var(--success-bg)', color: '#10B981', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>
+                        Activated
+                      </span>
                     )}
                     <button
                       onClick={() => handleDelete(volunteer.id)}
@@ -287,7 +336,8 @@ export default function Volunteers() {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </section>
         )}
     </AdminLayout>
   );

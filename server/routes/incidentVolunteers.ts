@@ -183,4 +183,25 @@ export function registerIncidentVolunteerRoutes(app: Express) {
       handle(res, err, "Update volunteer");
     }
   });
+
+  // DELETE /api/incident-volunteers/:id — admin removes an offer
+  app.delete("/api/incident-volunteers/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const db = await requireDb();
+      const id = Number(req.params.id);
+      const existing = await db
+        .select({ status: incidentVolunteers.status })
+        .from(incidentVolunteers)
+        .where(eq(incidentVolunteers.id, id))
+        .limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ error: "Volunteer offer not found" });
+        return;
+      }
+      await db.delete(incidentVolunteers).where(eq(incidentVolunteers.id, id));
+      res.json({ success: true });
+    } catch (err) {
+      handle(res, err, "Remove volunteer offer");
+    }
+  });
 }

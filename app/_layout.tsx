@@ -50,6 +50,7 @@ function AuthGate() {
       <Stack.Screen name="report/new" options={{ presentation: "modal" }} />
       <Stack.Screen name="sos" options={{ presentation: "modal" }} />
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
+      <Stack.Screen name="notices/[id]" options={{ presentation: "modal" }} />
       <Stack.Screen name="report/[id]" options={{ presentation: "modal" }} />
       <Stack.Screen name="incident/[id]" options={{ presentation: "modal" }} />
       <Stack.Screen name="auth/login" />

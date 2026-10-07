@@ -8,6 +8,7 @@ import Incidents from './pages/Incidents';
 import Notices from './pages/Notices';
 import Resources from './pages/Resources';
 import Volunteers from './pages/Volunteers';
+import Users from './pages/Users';
 import { isAuthenticated, getMe } from './lib/api';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -72,6 +73,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Issues />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <Users />
             </ProtectedRoute>
           }
         />

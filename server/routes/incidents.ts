@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { incidents, incidentVolunteers, wards } from "../../drizzle/schema";
@@ -55,13 +55,17 @@ export function registerIncidentRoutes(app: Express) {
       const db = await getDb();
       if (!db) throw new AppError(500, "Database not available");
 
-      const { wardId, severity, limit: limitStr, offset: offsetStr } = req.query;
+      const { wardId, severity, status, limit: limitStr, offset: offsetStr } = req.query;
       const limit = Math.min(parseInt(limitStr as string) || 20, 100);
       const offset = parseInt(offsetStr as string) || 0;
 
       const conditions = [];
       if (wardId) conditions.push(eq(incidents.wardId, Number(wardId)));
       if (severity) conditions.push(eq(incidents.severity, severity as any));
+      if (status) {
+        const statuses = String(status).split(",").map((value) => value.trim()).filter(Boolean);
+        if (statuses.length > 0) conditions.push(inArray(incidents.status, statuses));
+      }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -175,10 +179,10 @@ export function registerIncidentRoutes(app: Express) {
 
       const incidentId = Number(result[0].insertId);
 
-      // Everyone sees every incident on the map. Notifications: the incident's
+      // Everyone sees every published incident on the map. Notifications: the incident's
       // ward always; High severity goes to everyone, because people from other
       // wards pass through and are at risk too. Fire-and-forget.
-      notifyResidents(
+      await notifyResidents(
         db,
         fields.severity === "High" ? "all" : [wardId],
         `New incident: ${fields.title}`,

@@ -59,6 +59,8 @@ export interface Notice {
   category: NoticeCategory;
   postedBy: number;
   createdAt: string;
+  allWards?: boolean;
+  wards?: { id: number; name: string }[];
   wardName?: string;
   postedByName?: string;
 }
@@ -185,6 +187,12 @@ export interface VolunteersResponse {
   offset: number;
 }
 
+export interface IncidentVolunteerResponse {
+  approved: number;
+  pending: number;
+  mine: { id: number; status: "pending" | "approved" | "declined" } | null;
+}
+
 export const statusLabel: Record<IssueStatus, string> = {
   submitted: "Submitted",
   acknowledged: "Acknowledged",
@@ -249,10 +257,15 @@ export async function getNotices(params?: { wardId?: number; category?: string; 
   return apiRequest<NoticesResponse>(`/api/notices${qs ? `?${qs}` : ""}`);
 }
 
-export async function getIncidents(params?: { wardId?: number; severity?: string; limit?: number; offset?: number }): Promise<IncidentsResponse> {
+export async function getNotice(id: number): Promise<{ notice: Notice }> {
+  return apiRequest<{ notice: Notice }>(`/api/notices/${id}`);
+}
+
+export async function getIncidents(params?: { wardId?: number; severity?: string; status?: string; limit?: number; offset?: number }): Promise<IncidentsResponse> {
   const query = new URLSearchParams();
   if (params?.wardId) query.set("wardId", String(params.wardId));
   if (params?.severity) query.set("severity", params.severity);
+  if (params?.status) query.set("status", params.status);
   if (params?.limit) query.set("limit", String(params.limit));
   if (params?.offset) query.set("offset", String(params.offset));
   const qs = query.toString();
@@ -345,6 +358,23 @@ export async function getVolunteers(params?: { wardId?: number; status?: string;
 
 export async function getVolunteerCount(wardId: number): Promise<{ count: number }> {
   return apiRequest<{ count: number }>(`/api/volunteers/count?wardId=${wardId}`);
+}
+
+export async function getIncidentVolunteers(incidentId: number): Promise<IncidentVolunteerResponse> {
+  return apiRequest<IncidentVolunteerResponse>(`/api/incidents/${incidentId}/volunteers`);
+}
+
+export async function submitIncidentVolunteer(data: { incidentId: number; note?: string }): Promise<{ volunteer: { id: number; incidentId: number; status: "pending" } }> {
+  return apiRequest<{ volunteer: { id: number; incidentId: number; status: "pending" } }>(`/api/incidents/${data.incidentId}/volunteers`, {
+    method: "POST",
+    body: JSON.stringify({ note: data.note }),
+  });
+}
+
+export async function deleteIncidentVolunteer(incidentId: number): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/api/incidents/${incidentId}/volunteers/me`, {
+    method: "DELETE",
+  });
 }
 
 export interface UploadResult {

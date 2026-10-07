@@ -19,6 +19,12 @@ interface SosAlert {
 }
 
 const STATUSES = ['pending', 'dispatched', 'resolved', 'cancelled'];
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Active',
+  dispatched: 'Monitoring',
+  resolved: 'Resolved',
+  cancelled: 'Cancelled',
+};
 
 const statusColors: Record<string, string> = {
   pending: '#EF4444',
@@ -93,10 +99,11 @@ export default function Sos() {
     try {
       await createIncident({
         ...incidentForm,
+        wardId: promoting.wardId,
         severity: incidentForm.severity as 'High' | 'Medium' | 'Low',
         status: 'Active',
-        // Based on one resident's alert: shown as "Pending" on the Incidents page until verified there
-        verified: false,
+        // Publishing from SOS is an explicit admin decision, so it is immediately public.
+        verified: true,
         // keep the alert's location so the incident shows up on residents' map
         ...(hasCoords(promoting.latitude, promoting.longitude)
           ? { latitude: Number(promoting.latitude), longitude: Number(promoting.longitude) }
@@ -106,7 +113,7 @@ export default function Sos() {
       await updateSosAlert(promoting.id, 'dispatched');
       setAlerts((prev) => prev.map((a) => (a.id === promoting.id ? { ...a, status: 'dispatched' } : a)));
       setPromoting(null);
-      alert('Incident published. Residents will now see it on their map. Verify it on the Incidents page once confirmed.');
+      alert('Incident published. Residents will now see it on their map.');
     } catch (err: any) {
       alert(`Failed to create incident: ${err.message}`);
     } finally {
@@ -273,7 +280,7 @@ export default function Sos() {
                         background: `${statusColors[alert.status] || '#94A3B8'}20`,
                         color: statusColors[alert.status] || '#94A3B8'
                       }}>
-                        {alert.status}
+                        {STATUS_LABELS[alert.status] || alert.status}
                       </span>
                     </div>
                     {alert.note && (
@@ -324,7 +331,7 @@ export default function Sos() {
                       }}
                     >
                       {STATUSES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                        <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>
                       ))}
                     </select>
                   </div>

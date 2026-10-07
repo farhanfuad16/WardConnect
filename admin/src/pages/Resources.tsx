@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getResources, createResource, updateResource, deleteResource } from '../lib/api';
+import { getResources, createResource, updateResource, deleteResource, getWards } from '../lib/api';
 import { hasCoords, osmLink } from '../lib/map';
 import MapPicker from '../components/MapPicker';
 
 interface Resource {
   id: number;
+  wardId: number;
   name: string;
   category: string;
   contactInfo: string;
@@ -17,7 +18,7 @@ interface Resource {
   createdAt: string;
 }
 
-const EMPTY_FORM = { name: '', category: 'hospital', contactInfo: '', address: '', description: '', latitude: '', longitude: '' };
+const EMPTY_FORM = { wardId: '', name: '', category: 'hospital', contactInfo: '', address: '', description: '', latitude: '', longitude: '' };
 
 const categoryIcons: Record<string, string> = {
   hospital: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
@@ -34,9 +35,11 @@ export default function Resources() {
   const [editing, setEditing] = useState<Resource | null>(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [filter, setFilter] = useState({ category: '' });
+  const [wards, setWards] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     loadResources();
+    getWards().then((data: any) => setWards(data.wards || [])).catch((err: any) => setError(err.message || 'Failed to load wards'));
   }, [filter]);
 
   const loadResources = async () => {
@@ -55,7 +58,11 @@ export default function Resources() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { latitude, longitude, ...rest } = formData;
+    const { latitude, longitude, wardId, ...rest } = formData;
+    if (!wardId) {
+      alert('Choose the ward this resource is in.');
+      return;
+    }
     const lat = latitude.trim();
     const lng = longitude.trim();
     if ((lat === '') !== (lng === '')) {
@@ -69,9 +76,9 @@ export default function Resources() {
     try {
       if (editing) {
         // null clears a previously saved location
-        await updateResource(editing.id, { ...rest, latitude: lat === '' ? null : Number(lat), longitude: lng === '' ? null : Number(lng) });
+        await updateResource(editing.id, { ...rest, wardId: Number(wardId), latitude: lat === '' ? null : Number(lat), longitude: lng === '' ? null : Number(lng) });
       } else {
-        await createResource(lat === '' ? rest : { ...rest, latitude: Number(lat), longitude: Number(lng) });
+        await createResource(lat === '' ? { ...rest, wardId: Number(wardId) } : { ...rest, wardId: Number(wardId), latitude: Number(lat), longitude: Number(lng) });
       }
       setShowForm(false);
       setEditing(null);
@@ -85,6 +92,7 @@ export default function Resources() {
   const handleEdit = (resource: Resource) => {
     setEditing(resource);
     setFormData({
+      wardId: String(resource.wardId),
       name: resource.name,
       category: resource.category,
       contactInfo: resource.contactInfo,
@@ -221,6 +229,20 @@ export default function Resources() {
                     <option value="fire_station">Fire Station</option>
                     <option value="police">Police</option>
                     <option value="shelter">Shelter</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: 'var(--text-2)' }}>
+                    Ward
+                  </label>
+                  <select
+                    value={formData.wardId}
+                    onChange={(e) => setFormData({ ...formData, wardId: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: '10px', border: '1px solid var(--border-strong)', borderRadius: '8px', fontSize: '14px' }}
+                  >
+                    <option value="">Choose a ward</option>
+                    {wards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}
                   </select>
                 </div>
               </div>

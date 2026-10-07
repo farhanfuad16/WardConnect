@@ -16,6 +16,7 @@ import { registerVolunteerRoutes } from "../routes/volunteers";
 import { registerIncidentVolunteerRoutes } from "../routes/incidentVolunteers";
 import { registerUploadRoutes } from "../routes/uploads";
 import { registerAnalyticsRoutes } from "../routes/analytics";
+import { registerUserRoutes } from "../routes/users";
 import { notFound, errorHandler } from "../middleware/errorHandler";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -85,6 +86,7 @@ async function startServer() {
   registerIncidentVolunteerRoutes(app);
   registerUploadRoutes(app);
   registerAnalyticsRoutes(app);
+  registerUserRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });

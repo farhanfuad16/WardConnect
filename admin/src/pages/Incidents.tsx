@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getIncidents, createIncident, updateIncident, deleteIncident } from '../lib/api';
+import { getIncidents, createIncident, updateIncident, deleteIncident, getWards } from '../lib/api';
 import { hasCoords, osmLink } from '../lib/map';
 import MapPicker from '../components/MapPicker';
 import { timeAgoWithDate } from '../lib/time';
 
 interface Incident {
   id: number;
+  wardId: number;
   title: string;
   description: string;
   severity: 'High' | 'Medium' | 'Low';
@@ -34,7 +35,14 @@ const severityColors: Record<string, string> = {
   High: '#EF4444',
 };
 
+const statusColors: Record<string, string> = {
+  Active: '#EF4444',
+  Monitoring: '#F59E0B',
+  Resolved: '#10B981',
+};
+
 const EMPTY_FORM = {
+  wardId: 0,
   title: '',
   category: '',
   severity: 'High' as Incident['severity'],
@@ -59,9 +67,11 @@ export default function Incidents() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [wards, setWards] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     loadIncidents();
+    getWards().then((data: any) => setWards(data.wards || [])).catch((err: any) => setError(err.message || 'Failed to load wards'));
     const interval = setInterval(() => loadIncidents(true), 15000);
     return () => clearInterval(interval);
   }, [filter.severity]);
@@ -105,6 +115,10 @@ export default function Incidents() {
       return;
     }
     const fields = { ...rest, title: rest.title.trim(), category: rest.category.trim(), description: rest.description.trim() };
+    if (!fields.wardId) {
+      alert('Choose the ward where this incident happened.');
+      return;
+    }
     setSaving(true);
     try {
       if (editing) {
@@ -132,6 +146,7 @@ export default function Incidents() {
       description: incident.description,
       latitude: incident.latitude ? String(Number(incident.latitude)) : '',
       longitude: incident.longitude ? String(Number(incident.longitude)) : '',
+      wardId: incident.wardId,
       verified: incident.verifiedBy != null,
     });
     setShowForm(true);
@@ -156,6 +171,18 @@ export default function Incidents() {
       await loadIncidents(true);
     } catch (err: any) {
       alert(`Failed to ${verified ? 'verify' : 'update'}: ${err.message}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleStatusChange = async (id: number, status: string) => {
+    setBusyId(id);
+    try {
+      await updateIncident(id, { status });
+      await loadIncidents(true);
+    } catch (err: any) {
+      alert(`Failed to update status: ${err.message}`);
     } finally {
       setBusyId(null);
     }
@@ -254,6 +281,18 @@ export default function Incidents() {
             </h2>
             <form onSubmit={handleSubmit}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={labelStyle}>Ward</label>
+                  <select
+                    value={formData.wardId}
+                    onChange={(e) => setFormData({ ...formData, wardId: Number(e.target.value) })}
+                    required
+                    style={inputStyle}
+                  >
+                    <option value={0}>Choose a ward</option>
+                    {wards.map((ward) => <option key={ward.id} value={ward.id}>{ward.name}</option>)}
+                  </select>
+                </div>
                 <div>
                   <label style={labelStyle}>Title</label>
                   <input
@@ -515,6 +554,14 @@ export default function Incidents() {
                     >
                       Edit
                     </button>
+                    <select
+                      value={incident.status}
+                      disabled={busyId === incident.id}
+                      onChange={(e) => handleStatusChange(incident.id, e.target.value)}
+                      style={{ ...buttonStyle, border: `1px solid ${statusColors[incident.status] || 'var(--border-strong)'}`, background: `${statusColors[incident.status] || '#94A3B8'}15`, color: statusColors[incident.status] || 'var(--text-2)' }}
+                    >
+                      {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
                     <button
                       onClick={() => handleDelete(incident.id)}
                       style={{ ...buttonStyle, background: 'var(--danger-bg-2)', color: 'var(--danger-text)' }}

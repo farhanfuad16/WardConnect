@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { PressableView } from "@/components/pressable-view";
@@ -60,7 +60,7 @@ export default function HomeScreen() {
   const { C: colors, s: styles } = useAppStyles(makeStyles);
   const { user } = useAuthContext();
   const { data: noticesData, isLoading: noticesLoading, error: noticesError, refetch: refetchNotices } = useNotices({ limit: 3 });
-  const { data: incidentsData, isLoading: incidentsLoading, error: incidentsError, refetch: refetchIncidents } = useIncidents({ limit: 1 });
+  const { data: incidentsData, isLoading: incidentsLoading, error: incidentsError, refetch: refetchIncidents } = useIncidents({ status: "Active,Monitoring", limit: 20 });
 
   const isLoading = noticesLoading || incidentsLoading;
   const hasError = noticesError || incidentsError;
@@ -74,7 +74,10 @@ export default function HomeScreen() {
   }
 
   const notices = noticesData?.notices || [];
-  const incidents = incidentsData?.incidents || [];
+  const incidents = (incidentsData?.incidents || []).filter((incident) => {
+    const status = incident.status.trim().toLowerCase();
+    return status === "active" || status === "monitoring";
+  });
   const fullName = user?.name || "User";
   const firstName = fullName.split(" ")[0];
   const wardDisplay = user?.wardName ? (/^ward\s/i.test(user.wardName) ? user.wardName : `Ward ${user.wardId} · ${user.wardName}`) : "No ward assigned";
@@ -115,20 +118,21 @@ export default function HomeScreen() {
         {incidents.length > 0 && (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.section}>Active emergency</Text>
-              <Pressable onPress={() => router.push(`/incident/${incidents[0].id}`)}><Text style={styles.link}>View details</Text></Pressable>
+              <Text style={styles.section}>Active emergencies</Text>
             </View>
-            <Pressable onPress={() => router.push(`/incident/${incidents[0].id}`)} style={styles.emergency}>
-              <View style={styles.emergencyIcon}>
-                <IconSymbol name="exclamationmark.triangle.fill" size={20} color={colors.coral} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emergencyLabel}>VERIFIED INCIDENT · {incidents[0].severity?.toUpperCase()}</Text>
-                <Text style={styles.emergencyTitle}>{incidents[0].title}</Text>
-                <Text style={styles.emergencyMeta}>{incidents[0].status} · {incidents[0].category}</Text>
-              </View>
-              <IconSymbol name="chevron.right" size={21} color={colors.muted} />
-            </Pressable>
+            {incidents.map((incident) => (
+              <Pressable key={incident.id} onPress={() => router.push(`/incident/${incident.id}`)} style={styles.emergency}>
+                <View style={styles.emergencyIcon}>
+                  <IconSymbol name="exclamationmark.triangle.fill" size={20} color={colors.coral} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.emergencyLabel}>VERIFIED INCIDENT · {incident.severity?.toUpperCase()}</Text>
+                  <Text style={styles.emergencyTitle}>{incident.title}</Text>
+                  <Text style={styles.emergencyMeta}>{incident.status} · {incident.category}</Text>
+                </View>
+                <IconSymbol name="chevron.right" size={21} color={colors.muted} />
+              </Pressable>
+            ))}
           </>
         )}
 
@@ -140,7 +144,7 @@ export default function HomeScreen() {
           <Text style={{ color: colors.muted, fontSize: 13, marginTop: 8 }}>No notices yet.</Text>
         ) : (
           notices.map((notice) => (
-            <Pressable key={notice.id} onPress={() => router.push("/(tabs)/notices")} style={styles.notice}>
+            <Pressable key={notice.id} onPress={() => router.push(`/notices/${notice.id}` as Href)} style={styles.notice}>
               <View style={[styles.noticeBar, { backgroundColor: notice.category === "Emergency Alert" ? colors.coral : notice.category === "Utility Notice" ? colors.amber : colors.teal }]} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.noticeCategory}>{notice.category.toUpperCase()}</Text>
@@ -179,7 +183,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 20 },
   link: { color: colors.teal, fontSize: 13, fontWeight: "600", marginBottom: 12 },
-  emergency: { backgroundColor: colors.surface, borderRadius: 18, padding: 15, flexDirection: "row", alignItems: "center", gap: 12, ...colors.card, borderLeftWidth: 4, borderLeftColor: colors.coral },
+  emergency: { backgroundColor: colors.surface, borderRadius: 18, padding: 15, marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 12, ...colors.card, borderLeftWidth: 4, borderLeftColor: colors.coral },
   emergencyIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.coralTint, alignItems: "center", justifyContent: "center" },
   emergencyLabel: { color: colors.coral, fontSize: 10, fontWeight: "600", letterSpacing: 0.6 },
   emergencyTitle: { color: colors.ink, fontSize: 15, fontWeight: "700", marginTop: 4 },

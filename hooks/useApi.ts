@@ -56,10 +56,11 @@ export function useNotices(params?: { wardId?: number; category?: string; limit?
   });
 }
 
-export function useIncidents(params?: { wardId?: number; severity?: string; limit?: number; offset?: number }) {
+export function useIncidents(params?: { wardId?: number; severity?: string; status?: string; limit?: number; offset?: number }) {
   return useQuery({
     queryKey: ["incidents", params],
     queryFn: () => api.getIncidents(params),
+    refetchInterval: 15000,
   });
 }
 
@@ -167,5 +168,34 @@ export function useVolunteerCount(wardId?: number) {
     queryFn: () => api.getVolunteerCount(wardId!),
     enabled: !!wardId,
     refetchInterval: 10000,
+  });
+}
+
+export function useIncidentVolunteers(incidentId?: number) {
+  return useQuery({
+    queryKey: ["incident-volunteers", incidentId],
+    queryFn: () => api.getIncidentVolunteers(incidentId!),
+    enabled: !!incidentId,
+    refetchInterval: 10000,
+  });
+}
+
+export function useSubmitIncidentVolunteer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.submitIncidentVolunteer,
+    onSuccess: (_response, { incidentId }) => {
+      queryClient.invalidateQueries({ queryKey: ["incident-volunteers", incidentId] });
+    },
+  });
+}
+
+export function useDeleteIncidentVolunteer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deleteIncidentVolunteer,
+    onSuccess: (_response, incidentId) => {
+      queryClient.invalidateQueries({ queryKey: ["incident-volunteers", incidentId] });
+    },
   });
 }

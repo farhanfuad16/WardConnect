@@ -74,6 +74,20 @@ export async function getMe(): Promise<any> {
   return apiRequest('/auth/me');
 }
 
+// Users
+export async function getUsers(params?: { search?: string; limit?: number; offset?: number }) {
+  const query = new URLSearchParams();
+  if (params?.search) query.set('search', params.search);
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.offset) query.set('offset', String(params.offset));
+  const qs = query.toString();
+  return apiRequest(`/users${qs ? `?${qs}` : ''}`);
+}
+
+export async function deleteUser(id: number) {
+  return apiRequest(`/users/${id}`, { method: 'DELETE' });
+}
+
 // Issues
 export async function getIssues(params?: { wardId?: number; status?: string; limit?: number; offset?: number }) {
   const query = new URLSearchParams();
@@ -108,6 +122,7 @@ export async function getIncidents(params?: { wardId?: number; severity?: string
 }
 
 export async function createIncident(data: {
+  wardId: number;
   title: string;
   category: string;
   severity: 'High' | 'Medium' | 'Low';
@@ -181,14 +196,14 @@ export async function getNotices(params?: { wardId?: number; category?: string; 
   return apiRequest(`/notices${qs ? `?${qs}` : ''}`);
 }
 
-export async function createNotice(data: { title: string; body: string; category: string }) {
+export async function createNotice(data: { title: string; body: string; category: string; allWards?: boolean; wardIds?: number[] }) {
   return apiRequest('/notices', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateNotice(id: number, data: { title?: string; body?: string; category?: string }) {
+export async function updateNotice(id: number, data: { title?: string; body?: string; category?: string; allWards?: boolean; wardIds?: number[] }) {
   return apiRequest(`/notices/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -212,14 +227,14 @@ export async function getResources(params?: { wardId?: number; category?: string
   return apiRequest(`/resources${qs ? `?${qs}` : ''}`);
 }
 
-export async function createResource(data: { name: string; category: string; contactInfo: string; address?: string; description?: string; latitude?: number; longitude?: number }) {
+export async function createResource(data: { wardId: number; name: string; category: string; contactInfo: string; address?: string; description?: string; latitude?: number; longitude?: number }) {
   return apiRequest('/resources', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateResource(id: number, data: { name?: string; category?: string; contactInfo?: string; address?: string; description?: string; latitude?: number | null; longitude?: number | null }) {
+export async function updateResource(id: number, data: { wardId?: number; name?: string; category?: string; contactInfo?: string; address?: string; description?: string; latitude?: number | null; longitude?: number | null }) {
   return apiRequest(`/resources/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -256,6 +271,21 @@ export async function deleteVolunteer(id: number) {
   });
 }
 
+export async function getIncidentVolunteers(params?: { status?: string; incidentId?: number }) {
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.incidentId) query.set('incidentId', String(params.incidentId));
+  const qs = query.toString();
+  return apiRequest(`/incident-volunteers${qs ? `?${qs}` : ''}`);
+}
+
+export async function updateIncidentVolunteer(id: number, status: 'pending' | 'approved' | 'declined') {
+  return apiRequest(`/incident-volunteers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
 // Analytics
 export async function getAnalyticsSummary() {
   return apiRequest('/analytics/summary');
@@ -264,4 +294,10 @@ export async function getAnalyticsSummary() {
 // Wards
 export async function getWards() {
   return apiRequest('/wards');
+}
+
+export async function deleteIncidentVolunteer(id: number) {
+  return apiRequest(`/incident-volunteers/${id}`, {
+    method: 'DELETE',
+  });
 }

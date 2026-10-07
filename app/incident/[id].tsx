@@ -6,7 +6,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LeafletMap } from "@/components/leaflet-map";
 import { toCoords } from "@/lib/geo";
 import { openDirections } from "@/lib/directions";
-import { useIncident, useVolunteerCount, useVolunteers, useSubmitVolunteerInterest, useDeleteVolunteerInterest } from "@/hooks/useApi";
+import { useIncident, useIncidentVolunteers, useSubmitIncidentVolunteer, useDeleteIncidentVolunteer } from "@/hooks/useApi";
 import { useAppColors } from "@/hooks/use-app-colors";
 import { showAlert } from "@/lib/alert";
 
@@ -16,45 +16,46 @@ export default function IncidentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const incidentId = parseInt(id || "0", 10);
   const { data, isLoading, error } = useIncident(incidentId);
-  const volunteerMutation = useSubmitVolunteerInterest();
-  const cancelMutation = useDeleteVolunteerInterest();
+  const volunteerMutation = useSubmitIncidentVolunteer();
+  const cancelMutation = useDeleteIncidentVolunteer();
   const item = data?.incident;
-  const { data: volunteerCountData } = useVolunteerCount(item?.wardId);
-  const volunteerCount = volunteerCountData?.count ?? 0;
-
-  // Volunteers aren't linked to a specific incident in the data model
-  // (they're a ward-general pool an admin coordinates manually) — so "am I
-  // already helping here" means "do I have a live signup for this incident's
-  // ward", regardless of whether it came from this screen or the profile tab.
-  const { data: myVolunteersData } = useVolunteers();
-  const myRecord = myVolunteersData?.volunteers.find(
-    (v) => v.wardId === item?.wardId && v.status !== "inactive",
-  );
+  const { data: volunteerData } = useIncidentVolunteers(item?.id);
+  const volunteerCount = volunteerData?.approved ?? 0;
+  const myRecord = volunteerData?.mine;
+  const hasActiveOffer = myRecord?.status === "pending" || myRecord?.status === "approved";
   const isPending = myRecord?.status === "pending";
   const isBusy = volunteerMutation.isPending || cancelMutation.isPending;
+  const goBackToMap = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/map");
+    }
+  };
 
   const handleVolunteer = async () => {
     try {
+      if (!item) return;
       await volunteerMutation.mutateAsync({
-        wardId: item?.wardId,
-        skillsOrInterest: item ? `Wants to help with incident #${item.id}: "${item.title}"` : undefined,
+        incidentId: item.id,
+        note: `Wants to help with incident #${item.id}: "${item.title}"`,
       });
-      showAlert("I can help", "Your volunteer offer has been recorded for manual coordination by the ward admin.");
+      showAlert("I can help", "Your offer has been recorded for this incident and sent to the ward admin.");
     } catch (err: any) {
       showAlert("Couldn't record your offer", err?.message || "Something went wrong. Please try again.");
     }
   };
 
   const handleCancel = () => {
-    if (!myRecord) return;
-    showAlert("Cancel your offer?", "You'll no longer be listed as a volunteer for this ward.", [
+    if (!item || !myRecord) return;
+    showAlert("Cancel your offer?", "You'll no longer be listed as a volunteer for this incident.", [
       { text: "Keep it", style: "cancel" },
       {
         text: "Cancel offer",
         style: "destructive",
         onPress: async () => {
           try {
-            await cancelMutation.mutateAsync(myRecord.id);
+            await cancelMutation.mutateAsync(item.id);
           } catch (err: any) {
             showAlert("Couldn't cancel your offer", err?.message || "Something went wrong. Please try again.");
           }
@@ -67,7 +68,7 @@ export default function IncidentDetail() {
     return (
       <ScreenContainer>
         <ScrollView contentContainerStyle={s.content}>
-          <BackButton label="Back to map" />
+          <BackButton label="Back to map" onPress={goBackToMap} />
           <View style={{ alignItems: "center", paddingTop: 60 }}>
             <ActivityIndicator size="large" color={C.teal} />
             <Text style={{ color: C.muted, marginTop: 12 }}>Loading incident...</Text>
@@ -81,7 +82,7 @@ export default function IncidentDetail() {
     return (
       <ScreenContainer>
         <ScrollView contentContainerStyle={s.content}>
-          <BackButton label="Back to map" />
+          <BackButton label="Back to map" onPress={goBackToMap} />
           <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 20 }}>
             <Text style={{ color: C.coral, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>Incident not found</Text>
             <Text style={{ color: C.muted, fontSize: 13, textAlign: "center" }}>{error?.message || "This incident could not be loaded."}</Text>
@@ -97,7 +98,7 @@ export default function IncidentDetail() {
   return (
     <ScreenContainer>
       <ScrollView contentContainerStyle={s.content}>
-        <BackButton label="Back to map" />
+        <BackButton label="Back to map" onPress={goBackToMap} />
         <View style={s.badge}>
           <Text style={s.badgeText}>VERIFIED PUBLIC INCIDENT</Text>
         </View>
@@ -113,7 +114,7 @@ export default function IncidentDetail() {
         <View style={s.volunteers}>
           <IconSymbol name="checkmark.circle.fill" size={18} color={C.teal} />
           <Text style={s.volunteersText}>
-            <Text style={{ fontWeight: "700", color: C.ink }}>{volunteerCount}</Text> volunteer{volunteerCount === 1 ? "" : "s"} already helping in this ward
+            <Text style={{ fontWeight: "700", color: C.ink }}>{volunteerCount}</Text> volunteer{volunteerCount === 1 ? "" : "s"} already helping with this incident
           </Text>
         </View>
         <Text style={s.section}>What we know</Text>
@@ -136,7 +137,7 @@ export default function IncidentDetail() {
           <View style={s.timeline}><View style={s.timelineDot} /><View style={{ flex: 1 }}><Text style={s.timelineLabel}>Verified by Ward Admin</Text><Text style={s.timelineTime}>Pending update</Text></View><View style={s.timelineLine} /></View>
           <View style={s.timeline}><View style={s.timelineDot} /><View style={{ flex: 1 }}><Text style={s.timelineLabel}>Response started</Text><Text style={s.timelineTime}>Pending update</Text></View></View>
         </View>
-        {myRecord ? (
+        {hasActiveOffer ? (
           <>
             <Pressable
               onPress={handleCancel}
@@ -151,7 +152,7 @@ export default function IncidentDetail() {
               <Text style={s.helpingText}>{isPending ? "Offer pending — tap to cancel" : "You're helping — tap to cancel"}</Text>
             </Pressable>
             <Text style={s.helpNote}>
-              {isPending ? "Your offer is waiting on ward admin approval." : "You're on the helper list for this ward."}
+              {isPending ? "Your offer is waiting on ward admin approval." : "You're on the helper list for this incident."}
             </Text>
           </>
         ) : (

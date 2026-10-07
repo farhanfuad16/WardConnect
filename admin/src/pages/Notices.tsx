@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { getNotices, createNotice, updateNotice, deleteNotice } from '../lib/api';
+import { getNotices, createNotice, updateNotice, deleteNotice, getWards } from '../lib/api';
 import { timeAgoWithDate } from '../lib/time';
 
 interface Notice {
@@ -10,6 +10,8 @@ interface Notice {
   category: string;
   authorName: string;
   createdAt: string;
+  allWards?: boolean;
+  wards?: { id: number; name: string }[];
 }
 
 // Must match the server's exact enum (server/routes/notices.ts) — the
@@ -30,9 +32,14 @@ export default function Notices() {
   const [editing, setEditing] = useState<Notice | null>(null);
   const [formData, setFormData] = useState({ title: '', body: '', category: 'General Notice' });
   const [filter, setFilter] = useState({ category: '' });
+  const [wards, setWards] = useState<{ id: number; name: string }[]>([]);
+  const [allWards, setAllWards] = useState(false);
+  const [selectedWardIds, setSelectedWardIds] = useState<number[]>([]);
+  const [wardMenuOpen, setWardMenuOpen] = useState(false);
 
   useEffect(() => {
     loadNotices();
+    getWards().then((data: any) => setWards(data.wards || [])).catch((err: any) => setError(err.message || 'Failed to load wards'));
     const interval = setInterval(() => loadNotices(true), 15000);
     return () => clearInterval(interval);
   }, [filter]);
@@ -54,14 +61,22 @@ export default function Notices() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (!allWards && selectedWardIds.length === 0) {
+        alert('Choose at least one ward, or send to all wards.');
+        return;
+      }
+      const targeting = { allWards, wardIds: allWards ? [] : selectedWardIds };
       if (editing) {
-        await updateNotice(editing.id, formData);
+        await updateNotice(editing.id, { ...formData, ...targeting });
       } else {
-        await createNotice(formData);
+        await createNotice({ ...formData, ...targeting });
       }
       setShowForm(false);
       setEditing(null);
       setFormData({ title: '', body: '', category: 'General Notice' });
+      setAllWards(false);
+      setSelectedWardIds([]);
+      setWardMenuOpen(false);
       loadNotices();
     } catch (err: any) {
       alert(`Failed to save: ${err.message}`);
@@ -71,6 +86,9 @@ export default function Notices() {
   const handleEdit = (notice: Notice) => {
     setEditing(notice);
     setFormData({ title: notice.title, body: notice.body, category: notice.category });
+    setAllWards(notice.allWards !== false);
+    setSelectedWardIds(notice.wards?.map((ward) => ward.id) || []);
+    setWardMenuOpen(false);
     setShowForm(true);
   };
 
@@ -88,6 +106,9 @@ export default function Notices() {
     setShowForm(false);
     setEditing(null);
     setFormData({ title: '', body: '', category: 'General Notice' });
+    setAllWards(false);
+    setSelectedWardIds([]);
+    setWardMenuOpen(false);
   };
 
   return (
@@ -206,6 +227,53 @@ export default function Notices() {
                   }}
                 />
               </div>
+              {!allWards && (
+                <div style={{ position: 'relative', marginTop: '-8px', marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: 'var(--text-2)' }}>
+                    Select wards
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setWardMenuOpen((open) => !open)}
+                    style={{ width: '100%', minHeight: '42px', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: '8px', background: 'var(--surface)', color: 'var(--text-2)', textAlign: 'left', cursor: 'pointer' }}
+                  >
+                    {selectedWardIds.length === 0 ? 'Choose wards' : (
+                      <span style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {selectedWardIds.map((id) => {
+                          const ward = wards.find((item) => item.id === id);
+                          return ward ? (
+                            <span key={ward.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 8px', borderRadius: '12px', background: 'var(--btn-bg)', fontSize: '12px' }}>
+                              {ward.name}<span aria-hidden="true">×</span>
+                            </span>
+                          ) : null;
+                        })}
+                      </span>
+                    )}
+                  </button>
+                  {wardMenuOpen && (
+                    <div style={{ position: 'absolute', zIndex: 10, left: 0, right: 0, top: '74px', maxHeight: '190px', overflowY: 'auto', padding: '6px', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: '8px', boxShadow: '0 6px 18px rgba(0, 0, 0, 0.15)' }}>
+                      {wards.map((ward) => {
+                        const selected = selectedWardIds.includes(ward.id);
+                        return (
+                          <button
+                            type="button"
+                            key={ward.id}
+                            onClick={() => setSelectedWardIds((ids) => selected ? ids.filter((id) => id !== ward.id) : [...ids, ward.id])}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '9px 10px', border: 'none', borderRadius: '6px', background: selected ? 'var(--btn-bg)' : 'transparent', color: 'var(--text-2)', textAlign: 'left', cursor: 'pointer' }}
+                          >
+                            {ward.name}<span aria-hidden="true">{selected ? '×' : '+'}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p style={{ color: 'var(--muted)', fontSize: '12px', margin: '6px 0 0' }}>Choose one or more wards.</p>
+                </div>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '14px', color: 'var(--text-2)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={allWards} onChange={(e) => setAllWards(e.target.checked)} />
+                Send to all wards
+              </label>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
                   type="submit"

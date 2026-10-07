@@ -3,6 +3,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { PressableView } from "@/components/pressable-view";
 import { useNotices } from "@/hooks/useApi";
+import { router, type Href } from "expo-router";
 import { NotificationBell } from "@/components/notification-bell";
 import { type Notice } from "@/lib/api";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
@@ -13,7 +14,7 @@ function NoticeCard({ item }: { item: Notice }) {
   const color = item.category === "Emergency Alert" ? C.coral : item.category === "Utility Notice" ? C.amber : C.teal;
   const bgColor = item.category === "Emergency Alert" ? C.coralTint : item.category === "Utility Notice" ? C.amberTint : C.greenTint;
   return (
-    <PressableView style={s.card} pressedStyle={{ opacity: .75 }}>
+    <PressableView onPress={() => router.push(`/notices/${item.id}` as Href)} style={s.card} pressedStyle={{ opacity: .75 }}>
       <View style={[s.icon, { backgroundColor: bgColor }]}>
         <IconSymbol name={item.category === "Emergency Alert" ? "exclamationmark.triangle.fill" : "bell.fill"} size={19} color={color} />
       </View>

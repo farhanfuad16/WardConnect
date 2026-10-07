@@ -16,7 +16,7 @@ import { showAlert } from "@/lib/alert";
 import { useAppStyles, type AppColors } from "@/hooks/use-app-colors";
 
 // Map pin for each resource category (admin offers these four; anything else gets a generic pin)
-const RESOURCE_ICONS: Record<string, string> = { hospital: "🏥", fire_station: "🚒", police: "🚓", shelter: "🏠" };
+const RESOURCE_ICONS: Record<string, string> = { hospital: "🏥", fire_station: "🚒", police: "🚨", shelter: "🏠" };
 const resourceIcon = (category: string) => RESOURCE_ICONS[category] ?? "📍";
 
 function IncidentRow({ item }: { item: Incident }) {
