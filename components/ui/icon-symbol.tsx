@@ -1,0 +1,39 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { SymbolWeight } from "expo-symbols";
+import { ComponentProps } from "react";
+import { OpaqueColorValue, type StyleProp, type TextStyle } from "react-native";
+
+// SF Symbol name -> Material icon. `satisfies` (not `as`) keeps the keys as literal names.
+type IconMapping = Record<string, ComponentProps<typeof MaterialIcons>["name"]>;
+type IconSymbolName = keyof typeof MAPPING;
+
+const MAPPING = {
+  "house.fill": "home",
+  "doc.text.fill": "description",
+  "map.fill": "map",
+  "bell.fill": "notifications-none",
+  "person.fill": "person-outline",
+  "plus.circle.fill": "add-circle-outline",
+  "location.fill": "my-location",
+  "chevron.right": "chevron-right",
+  "xmark": "close",
+  "phone.fill": "phone",
+  "shield.fill": "security",
+  "exclamationmark.triangle.fill": "warning",
+  "magnifyingglass": "search",
+  "checkmark.circle.fill": "check-circle",
+  "arrow.left": "arrow-back",
+  "gearshape.fill": "settings",
+  "hand.raised.fill": "volunteer-activism",
+  "moon.fill": "dark-mode",
+  "camera.fill": "photo-camera",
+  "trash": "delete",
+  "pencil": "edit",
+  "paperplane.fill": "send",
+  "arrow.triangle.turn.up.right.diamond.fill": "directions",
+  "arrow.clockwise": "refresh",
+} satisfies IconMapping;
+
+export function IconSymbol({ name, size = 24, color, style }: { name: IconSymbolName; size?: number; color: string | OpaqueColorValue; style?: StyleProp<TextStyle>; weight?: SymbolWeight }) {
+  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+}
